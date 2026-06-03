@@ -137,7 +137,7 @@ export default function ProdutosList({
               </div>
               
               <div className="flex justify-between items-start mb-3">
-                <span className="text-2xl font-bold text-[#7B2CFF]">{formatPrice(produto.preco)}</span>
+                <span className="text-2xl font-bold text-[#7B2CFF]">{formatPrice(produto.precoOriginal)}</span>
               </div>
               
               <p className="text-[#B8B8C8] text-sm mb-4 line-clamp-2">{produto.descricao}</p>

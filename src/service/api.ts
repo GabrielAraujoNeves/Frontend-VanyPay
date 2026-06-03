@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { CreateCategoriaRequest, CreateProdutoRequest, HappyHourConfig, HappyHourProductsResponse, LoginRequest, ProdutoResponse, UpdateCategoriaRequest, UpdateProdutoRequest } from "./types";
+import type { ActiveConfigResponse, CreateCategoriaRequest, CreateProdutoRequest, HappyHourConfig, HappyHourConfigResponse, HappyHourProductsResponse, LoginRequest, ProdutoResponse, UpdateCategoriaRequest, UpdateProdutoRequest } from "./types";
 
 const api = axios.create({
   baseURL: "http://localhost:8080",
@@ -18,10 +18,41 @@ api.interceptors.request.use((config) => {
 });
 
 // Auth
-export const authService = async (credentials: LoginRequest) => {
-  const response = await api.post("/auth/login", credentials);
-  return response.data;
+export const authService = {
+  login: async (credentials: LoginRequest) => {
+    const response = await api.post("/auth/login", credentials);
+    return response.data;
+  },
+  
+  validateToken: async () => {
+    const response = await api.get("/auth/validate-token");
+    return response.data;
+  },
+  
+  logout: () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("userRole");
+    localStorage.removeItem("userEmail");
+    localStorage.removeItem("lastTokenValidation");
+  }
 };
+
+// Interceptor para tratar erros 401 (token expirado)
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      console.log("Token expirado ou inválido");
+      
+      // Limpar dados do localStorage
+      authService.logout();
+      
+      // Redirecionar para login
+      window.location.href = "/";
+    }
+    return Promise.reject(error);
+  }
+);
 
 // Categorias
 export const categoriaService = {
@@ -73,16 +104,33 @@ export const produtoService = {
 
 
 export const happyHourService = {
-  configure: async (config: HappyHourConfig) => {
+  // Criar/atualizar configuração
+  configure: async (config: HappyHourConfig): Promise<HappyHourConfigResponse> => {
     const response = await api.post("/happy-hour/config", config);
     return response.data;
   },
+  
+  // Buscar configuração ativa (usando o mesmo endpoint GET)
+  getActiveConfig: async (): Promise<ActiveConfigResponse> => {
+    const response = await api.get("/happy-hour/config");
+    return response.data;
+  },
+  
+  // Listar produtos com desconto
   getProducts: async (): Promise<HappyHourProductsResponse> => {
     const response = await api.get("/happy-hour/products");
     return response.data;
   },
+  
+  // Desativar Happy Hour
   deactivate: async () => {
     const response = await api.delete("/happy-hour/deactivate");
+    return response.data;
+  },
+  
+  // Forçar ativação (teste)
+  forceActive: async () => {
+    const response = await api.post("/happy-hour/test/force-active");
     return response.data;
   }
 };

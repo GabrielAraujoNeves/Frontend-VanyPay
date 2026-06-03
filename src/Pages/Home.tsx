@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Sidebar from "../Components/Sidebar";
 import ProdutosList from "../Components/ProdutosList";
 import ModalCategoria from "../Components/ModalCategoria";
@@ -6,10 +7,13 @@ import ModalProduto from "../Components/ModalProduto";
 import ModalEditarProduto from "../Components/ModalEditarProduto";
 import ModalConfirmarDelete from "../Components/ModalConfirmarDelete";
 import HappyHourManager from "../Components/HappyHourManager";
-import { categoriaService, produtoService } from "../service/api";
+import { categoriaService, produtoService, authService } from "../service/api";
 import type { Categoria, Produto } from "../service/types";
+import { useTokenValidation } from "../hooks/useTokenValidation";
 
 export default function Home() {
+  const navigate = useNavigate();
+  const { isValidating, isAuthenticated, validateToken } = useTokenValidation();
   const [activeMenu, setActiveMenu] = useState("produtos");
   const [showCategoriaModal, setShowCategoriaModal] = useState(false);
   const [showProdutoModal, setShowProdutoModal] = useState(false);
@@ -20,7 +24,14 @@ export default function Home() {
   const [produtoSelecionado, setProdutoSelecionado] = useState<Produto | null>(null);
   const [deletando, setDeletando] = useState(false);
 
-  // Função para carregar categorias do endpoint correto
+  // Verificar autenticação
+  useEffect(() => {
+    if (!isValidating && !isAuthenticated) {
+      navigate("/");
+    }
+  }, [isValidating, isAuthenticated, navigate]);
+
+  // Carregar categorias
   const loadCategorias = async () => {
     try {
       const response = await categoriaService.listAll();
@@ -33,8 +44,10 @@ export default function Home() {
   };
 
   useEffect(() => {
-    loadCategorias();
-  }, [refreshProdutos]);
+    if (isAuthenticated) {
+      loadCategorias();
+    }
+  }, [refreshProdutos, isAuthenticated]);
 
   const handleRefresh = () => {
     setRefreshProdutos(prev => prev + 1);
@@ -75,7 +88,13 @@ export default function Home() {
     }
   };
 
-  // Renderizar conteúdo baseado no menu ativo
+  // Logout
+  const handleLogout = () => {
+    authService.logout();
+    navigate("/");
+  };
+
+  // Renderizar conteúdo
   const renderContent = () => {
     switch (activeMenu) {
       case "produtos":
@@ -90,41 +109,6 @@ export default function Home() {
         );
       case "happyhour":
         return <HappyHourManager />;
-      case "dashboard":
-        return (
-          <div>
-            <h1 className="text-3xl font-bold text-[#F5F5FA]">Dashboard</h1>
-            <p className="text-[#B8B8C8] mt-2">Bem-vindo ao VynPay.</p>
-          </div>
-        );
-      case "pagamentos":
-        return (
-          <div>
-            <h1 className="text-3xl font-bold text-[#F5F5FA]">Pagamentos</h1>
-            <p className="text-[#B8B8C8] mt-2">Gerencie os pagamentos do sistema.</p>
-          </div>
-        );
-      case "clientes":
-        return (
-          <div>
-            <h1 className="text-3xl font-bold text-[#F5F5FA]">Clientes</h1>
-            <p className="text-[#B8B8C8] mt-2">Gerencie seus clientes.</p>
-          </div>
-        );
-      case "configuracoes":
-        return (
-          <div>
-            <h1 className="text-3xl font-bold text-[#F5F5FA]">Configurações</h1>
-            <p className="text-[#B8B8C8] mt-2">Configure as preferências do sistema.</p>
-          </div>
-        );
-      case "pedidos":
-        return (
-          <div>
-            <h1 className="text-3xl font-bold text-[#F5F5FA]">Pedidos</h1>
-            <p className="text-[#B8B8C8] mt-2">Gerencie os pedidos.</p>
-          </div>
-        );
       default:
         return (
           <div>
@@ -135,6 +119,19 @@ export default function Home() {
     }
   };
 
+  if (isValidating) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-[#08080D]">
+        <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#7B2CFF]"></div>
+        <p className="ml-3 text-[#B8B8C8]">Validando sessão...</p>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
     <div className="flex min-h-screen bg-[#08080D]">
       <Sidebar 
@@ -142,6 +139,7 @@ export default function Home() {
         setActiveMenu={setActiveMenu}
         onAddCategoria={handleAddCategoria}
         onAddProduto={handleAddProduto}
+        onLogout={handleLogout}
       />
 
       <main className="flex-1 p-8 overflow-y-auto">

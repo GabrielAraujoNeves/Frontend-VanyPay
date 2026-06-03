@@ -9,7 +9,8 @@ import {
   Package,
   PlusCircle,
   Tag,
-  Clock
+  Clock,
+  LogOut
 } from "lucide-react";
 
 interface SidebarProps {
@@ -17,9 +18,16 @@ interface SidebarProps {
   setActiveMenu: (menu: string) => void;
   onAddCategoria: () => void;
   onAddProduto: () => void;
+  onLogout: () => void;
 }
 
-export default function Sidebar({ activeMenu, setActiveMenu, onAddCategoria, onAddProduto }: SidebarProps) {
+export default function Sidebar({ 
+  activeMenu, 
+  setActiveMenu, 
+  onAddCategoria, 
+  onAddProduto,
+  onLogout 
+}: SidebarProps) {
   const [open, setOpen] = useState(true);
   const [showProdutosSubmenu, setShowProdutosSubmenu] = useState(false);
   const [showVendasSubmenu, setShowVendasSubmenu] = useState(false);
@@ -41,6 +49,9 @@ export default function Sidebar({ activeMenu, setActiveMenu, onAddCategoria, onA
         duration-300
         ${open ? "w-64" : "w-20"}
         flex flex-col
+        h-screen
+        sticky
+        top-0
       `}
     >
       <div className="p-6 flex items-center justify-between">
@@ -63,7 +74,7 @@ export default function Sidebar({ activeMenu, setActiveMenu, onAddCategoria, onA
         </button>
       </div>
 
-      <nav className="px-4 flex-1">
+      <nav className="px-4 flex-1 overflow-y-auto">
         <ul className="space-y-2">
           {menuItems.map((item) => (
             <li key={item.id}>
@@ -83,7 +94,7 @@ export default function Sidebar({ activeMenu, setActiveMenu, onAddCategoria, onA
             </li>
           ))}
 
-          {/* Menu Vendas com Submenu */}
+          {/* Menu Vendas */}
           <li>
             <button
               onClick={() => open && setShowVendasSubmenu(!showVendasSubmenu)}
@@ -139,7 +150,7 @@ export default function Sidebar({ activeMenu, setActiveMenu, onAddCategoria, onA
             )}
           </li>
 
-          {/* Menu Produtos com Submenu */}
+          {/* Menu Produtos */}
           <li>
             <button
               onClick={() => open && setShowProdutosSubmenu(!showProdutosSubmenu)}
@@ -205,6 +216,17 @@ export default function Sidebar({ activeMenu, setActiveMenu, onAddCategoria, onA
           </li>
         </ul>
       </nav>
+
+      {/* Botão de Logout */}
+      <div className="p-4 border-t border-gray-800">
+        <button
+          onClick={onLogout}
+          className="flex items-center gap-3 w-full p-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-all"
+        >
+          <LogOut size={20} />
+          {open && <span>Sair</span>}
+        </button>
+      </div>
     </aside>
   );
 }
