@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { ActiveConfigResponse, CreateCategoriaRequest, CreateProdutoRequest, HappyHourConfig, HappyHourConfigResponse, HappyHourProductsResponse, LoginRequest, ProdutoResponse, UpdateCategoriaRequest, UpdateProdutoRequest } from "./types";
+import type { ActiveConfigResponse, CreateCategoriaRequest, CreateProdutoRequest, HappyHourConfig, HappyHourConfigResponse, HappyHourProductsResponse, LoginRequest, ProdutoResponse, RelatorioDiaResponse, UpdateCategoriaRequest, UpdateProdutoRequest } from "./types";
 
 const api = axios.create({
   baseURL: "http://localhost:8080",
@@ -134,5 +134,23 @@ export const happyHourService = {
     return response.data;
   }
 };
+
+export const relatorioService = {
+  getRelatorioDia: async (): Promise<RelatorioDiaResponse> => {
+    const response = await api.get("/comanda/relatorio/dia");
+    return response.data;
+  },
+  
+  getRelatorioSemana: async (): Promise<any> => {
+    const response = await api.get("/comanda/relatorio/semana");
+    return response.data;
+  },
+  
+  getRelatorioMes: async (): Promise<any> => {
+    const response = await api.get("/comanda/relatorio/mes");
+    return response.data;
+  }
+};
+
 
 export default api;

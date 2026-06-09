@@ -120,3 +120,27 @@ export interface HappyHourProductsResponse {
   produtos: HappyHourProduct[];
   isHappyHourActive: boolean;
 }
+
+export interface RelatorioDiaResponse {
+  data: string;
+  quantidadeComandas: number;
+  totalVendas: number;
+  comandas: Comanda[];
+}
+
+export interface Comanda {
+  id: number;
+  mesa: string;
+  valorTotal: number;
+  status: string;
+  createdAt: string;
+  items: ComandaItem[];
+}
+
+export interface ComandaItem {
+  id: number;
+  produtoNome: string;
+  quantidade: number;
+  precoUnitario: number;
+  subtotal: number;
+}

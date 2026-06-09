@@ -10,11 +10,12 @@ import HappyHourManager from "../Components/HappyHourManager";
 import { categoriaService, produtoService, authService } from "../service/api";
 import type { Categoria, Produto } from "../service/types";
 import { useTokenValidation } from "../hooks/useTokenValidation";
+import Dashboard from "../Components/Dashboard";
 
 export default function Home() {
   const navigate = useNavigate();
   const { isValidating, isAuthenticated, validateToken } = useTokenValidation();
-  const [activeMenu, setActiveMenu] = useState("produtos");
+  const [activeMenu, setActiveMenu] = useState("dashboard");
   const [showCategoriaModal, setShowCategoriaModal] = useState(false);
   const [showProdutoModal, setShowProdutoModal] = useState(false);
   const [showEditarProdutoModal, setShowEditarProdutoModal] = useState(false);
@@ -73,7 +74,7 @@ export default function Home() {
 
   const confirmDelete = async () => {
     if (!produtoSelecionado) return;
-    
+
     setDeletando(true);
     try {
       await produtoService.delete(produtoSelecionado.id);
@@ -99,7 +100,7 @@ export default function Home() {
     switch (activeMenu) {
       case "produtos":
         return (
-          <ProdutosList 
+          <ProdutosList
             categorias={categorias}
             onOpenProdutoModal={handleAddProduto}
             onEditProduto={handleEditProduto}
@@ -116,6 +117,8 @@ export default function Home() {
             <p className="text-[#B8B8C8] mt-2">Bem-vindo ao VynPay.</p>
           </div>
         );
+      case "dashboard":
+        return <Dashboard />;
     }
   };
 
@@ -134,8 +137,8 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen bg-[#08080D]">
-      <Sidebar 
-        activeMenu={activeMenu} 
+      <Sidebar
+        activeMenu={activeMenu}
         setActiveMenu={setActiveMenu}
         onAddCategoria={handleAddCategoria}
         onAddProduto={handleAddProduto}
