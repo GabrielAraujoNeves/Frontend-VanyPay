@@ -10,7 +10,10 @@ import {
   PlusCircle,
   Tag,
   Clock,
-  LogOut
+  LogOut,
+  Armchair,
+  Sparkles,
+  Wallet
 } from "lucide-react";
 
 interface SidebarProps {
@@ -21,22 +24,22 @@ interface SidebarProps {
   onLogout: () => void;
 }
 
-export default function Sidebar({ 
-  activeMenu, 
-  setActiveMenu, 
-  onAddCategoria, 
+export default function Sidebar({
+  activeMenu,
+  setActiveMenu,
+  onAddCategoria,
   onAddProduto,
-  onLogout 
+  onLogout
 }: SidebarProps) {
   const [open, setOpen] = useState(true);
   const [showProdutosSubmenu, setShowProdutosSubmenu] = useState(false);
-  const [showVendasSubmenu, setShowVendasSubmenu] = useState(false);
+  const [showConfigSubmenu, setShowConfigSubmenu] = useState(false);
 
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: Home },
+    { id: "vendas", label: "Vendas", icon: ShoppingCart },
     { id: "pagamentos", label: "Pagamentos", icon: CreditCard },
     { id: "clientes", label: "Clientes", icon: Users },
-    { id: "configuracoes", label: "Configurações", icon: Settings },
   ];
 
   return (
@@ -52,8 +55,10 @@ export default function Sidebar({
         h-screen
         sticky
         top-0
+        z-10
       `}
     >
+      {/* Logo */}
       <div className="p-6 flex items-center justify-between">
         {open && (
           <div>
@@ -68,22 +73,24 @@ export default function Sidebar({
 
         <button
           onClick={() => setOpen(!open)}
-          className="text-[#B8B8C8] hover:text-white"
+          className="text-[#B8B8C8] hover:text-white transition-colors"
         >
           <Menu size={22} />
         </button>
       </div>
 
+      {/* Menu de Navegação */}
       <nav className="px-4 flex-1 overflow-y-auto">
         <ul className="space-y-2">
+          {/* Itens principais do menu */}
           {menuItems.map((item) => (
             <li key={item.id}>
               <button
                 onClick={() => setActiveMenu(item.id)}
                 className={`
                   flex items-center gap-3 w-full p-3 rounded-xl transition-all
-                  ${activeMenu === item.id 
-                    ? "bg-[#7B2CFF] text-white" 
+                  ${activeMenu === item.id
+                    ? "bg-[#7B2CFF] text-white"
                     : "text-[#B8B8C8] hover:bg-[#7B2CFF]/10 hover:text-white"
                   }
                 `}
@@ -94,70 +101,14 @@ export default function Sidebar({
             </li>
           ))}
 
-          {/* Menu Vendas */}
-          <li>
-            <button
-              onClick={() => open && setShowVendasSubmenu(!showVendasSubmenu)}
-              className={`
-                flex items-center gap-3 w-full p-3 rounded-xl transition-all
-                ${activeMenu === "happyhour" || activeMenu === "pedidos"
-                  ? "bg-[#7B2CFF] text-white" 
-                  : "text-[#B8B8C8] hover:bg-[#7B2CFF]/10 hover:text-white"
-                }
-              `}
-            >
-              <ShoppingCart size={20} />
-              {open && (
-                <div className="flex-1 text-left">
-                  <span>Vendas</span>
-                </div>
-              )}
-              {open && (
-                <svg
-                  className={`transform transition-transform ${showVendasSubmenu ? "rotate-180" : ""}`}
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
-              )}
-            </button>
-
-            {open && showVendasSubmenu && (
-              <ul className="ml-8 mt-2 space-y-2">
-                <li>
-                  <button
-                    onClick={() => setActiveMenu("pedidos")}
-                    className="w-full text-left p-2 rounded-lg text-[#B8B8C8] hover:bg-[#7B2CFF]/10 hover:text-white transition-all text-sm"
-                  >
-                    Pedidos
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => setActiveMenu("happyhour")}
-                    className="w-full text-left p-2 rounded-lg text-[#B8B8C8] hover:bg-[#7B2CFF]/10 hover:text-white transition-all text-sm flex items-center gap-2"
-                  >
-                    <Clock size={14} />
-                    Happy Hour
-                  </button>
-                </li>
-              </ul>
-            )}
-          </li>
-
-          {/* Menu Produtos */}
+          {/* Menu Produtos com Submenu */}
           <li>
             <button
               onClick={() => open && setShowProdutosSubmenu(!showProdutosSubmenu)}
               className={`
                 flex items-center gap-3 w-full p-3 rounded-xl transition-all
-                ${activeMenu === "produtos" 
-                  ? "bg-[#7B2CFF] text-white" 
+                ${activeMenu === "produtos" || activeMenu === "happyhour"
+                  ? "bg-[#7B2CFF] text-white"
                   : "text-[#B8B8C8] hover:bg-[#7B2CFF]/10 hover:text-white"
                 }
               `}
@@ -170,7 +121,7 @@ export default function Sidebar({
               )}
               {open && (
                 <svg
-                  className={`transform transition-transform ${showProdutosSubmenu ? "rotate-180" : ""}`}
+                  className={`transform transition-transform duration-200 ${showProdutosSubmenu ? "rotate-180" : ""}`}
                   width="16"
                   height="16"
                   viewBox="0 0 24 24"
@@ -209,6 +160,89 @@ export default function Sidebar({
                   >
                     <Tag size={14} />
                     Adicionar Categoria
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => setActiveMenu("happyhour")}
+                    className="w-full text-left p-2 rounded-lg text-[#B8B8C8] hover:bg-[#7B2CFF]/10 hover:text-white transition-all text-sm flex items-center gap-2"
+                  >
+                    <Clock size={14} />
+                    Happy Hour
+                  </button>
+                </li>
+              </ul>
+            )}
+          </li>
+
+          {/* Menu Configurações com Submenu */}
+          <li>
+            <button
+              onClick={() => open && setShowConfigSubmenu(!showConfigSubmenu)}
+              className={`
+                flex items-center gap-3 w-full p-3 rounded-xl transition-all
+                ${activeMenu === "configuracoes" || activeMenu === "mesas" || activeMenu === "pulseiras" || activeMenu === "cartoes"
+                  ? "bg-[#7B2CFF] text-white"
+                  : "text-[#B8B8C8] hover:bg-[#7B2CFF]/10 hover:text-white"
+                }
+              `}
+            >
+              <Settings size={20} />
+              {open && (
+                <div className="flex-1 text-left">
+                  <span>Configurações</span>
+                </div>
+              )}
+              {open && (
+                <svg
+                  className={`transform transition-transform duration-200 ${showConfigSubmenu ? "rotate-180" : ""}`}
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              )}
+            </button>
+
+            {open && showConfigSubmenu && (
+              <ul className="ml-8 mt-2 space-y-2">
+                <li>
+                  <button
+                    onClick={() => setActiveMenu("mesas")}
+                    className="w-full text-left p-2 rounded-lg text-[#B8B8C8] hover:bg-[#7B2CFF]/10 hover:text-white transition-all text-sm flex items-center gap-2"
+                  >
+                    <Armchair size={14} />
+                    Mesas
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => setActiveMenu("pulseiras")}
+                    className="w-full text-left p-2 rounded-lg text-[#B8B8C8] hover:bg-[#7B2CFF]/10 hover:text-white transition-all text-sm flex items-center gap-2"
+                  >
+                    <Sparkles size={14} />
+                    Pulseiras
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => setActiveMenu("cartoes")}
+                    className="w-full text-left p-2 rounded-lg text-[#B8B8C8] hover:bg-[#7B2CFF]/10 hover:text-white transition-all text-sm flex items-center gap-2"
+                  >
+                    <Wallet size={14} />
+                    Cartões
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={() => setActiveMenu("configuracoes")}
+                    className="w-full text-left p-2 rounded-lg text-[#B8B8C8] hover:bg-[#7B2CFF]/10 hover:text-white transition-all text-sm"
+                  >
+                    Configurações Gerais
                   </button>
                 </li>
               </ul>

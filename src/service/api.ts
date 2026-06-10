@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { ActiveConfigResponse, CreateCategoriaRequest, CreateProdutoRequest, HappyHourConfig, HappyHourConfigResponse, HappyHourProductsResponse, LoginRequest, ProdutoResponse, RelatorioDiaResponse, UpdateCategoriaRequest, UpdateProdutoRequest } from "./types";
+import type { AbrirComandaCartaoResponse, AbrirComandaResponse, ActiveConfigResponse, AgruparPulseiraRequest, CartaoMessageResponse, CartaoResponse, ClienteResponse, Comanda, CreateCartaoRequest, CreateCategoriaRequest, CreateMesaRequest, CreateProdutoRequest, CreatePulseiraRequest, HappyHourConfig, HappyHourConfigResponse, HappyHourProductsResponse, LoginRequest, Mesa, MesaResponse, ProdutoResponse, PulseiraMessageResponse, PulseiraResponse, RelatorioDiaResponse, TipoComanda, UpdateCategoriaRequest, UpdateProdutoRequest, VincularCartaoRequest } from "./types";
 
 const api = axios.create({
   baseURL: "http://localhost:8080",
@@ -151,6 +151,157 @@ export const relatorioService = {
     return response.data;
   }
 };
+
+export const mesaService = {
+  listAll: async (): Promise<MesaResponse> => {
+    const response = await api.get("/comanda/mesas/detalhadas");
+    return response.data;
+  },
+  
+  listOcupadas: async (): Promise<MesaResponse> => {
+    const response = await api.get("/comanda/mesas/ocupadas");
+    return response.data;
+  },
+  
+  create: async (data: CreateMesaRequest): Promise<Mesa> => {
+    const response = await api.post("/comanda/mesas", data);
+    return response.data;
+  },
+  
+  liberar: async (mesaId: number): Promise<any> => {
+    const response = await api.put(`/comanda/mesas/${mesaId}/liberar`);
+    return response.data;
+  },
+  
+  delete: async (mesaId: number): Promise<any> => {
+    const response = await api.delete(`/comanda/mesas/${mesaId}`);
+    return response.data;
+  }
+};
+
+// Serviços para Comanda
+export const comandaService = {
+  abrirMesa: async (mesaId: number, clientes: string[]): Promise<AbrirComandaResponse> => {
+    const response = await api.post(`/comanda/abrir/mesa?mesaId=${mesaId}`, clientes);
+    return response.data;
+  },
+  
+  buscar: async (identificador: string, tipo: TipoComanda): Promise<Comanda> => {
+    const response = await api.get(`/comanda/buscar?identificador=${identificador}&tipo=${tipo}`);
+    return response.data;
+  },
+  
+  fechar: async (comandaId: number): Promise<any> => {
+    const response = await api.put(`/comanda/${comandaId}/fechar`);
+    return response.data;
+  },
+  
+  cancelar: async (comandaId: number): Promise<any> => {
+    const response = await api.put(`/comanda/${comandaId}/cancelar`);
+    return response.data;
+  }
+};
+
+
+export const pulseiraService = {
+  // Criar pulseira
+  create: async (data: CreatePulseiraRequest): Promise<any> => {
+    const response = await api.post("/comanda/pulseiras", data);
+    return response.data;
+  },
+  
+  // Listar todas as pulseiras
+  listAll: async (): Promise<PulseiraResponse> => {
+    const response = await api.get("/comanda/pulseiras");
+    return response.data;
+  },
+  
+  // Listar pulseiras ativas
+  listAtivas: async (): Promise<PulseiraResponse> => {
+    const response = await api.get("/comanda/pulseiras/ativas");
+    return response.data;
+  },
+  
+  // Agrupar pulseiras
+  agrupar: async (data: AgruparPulseiraRequest): Promise<PulseiraMessageResponse> => {
+    const response = await api.post("/comanda/pulseiras/agrupar", data);
+    return response.data;
+  },
+  
+  // Desagrupar pulseira
+  desagrupar: async (numeroPulseira: string): Promise<PulseiraMessageResponse> => {
+    const response = await api.delete(`/comanda/pulseiras/${numeroPulseira}/desagrupar`);
+    return response.data;
+  },
+  
+  // Desativar pulseira
+  desativar: async (numeroPulseira: string): Promise<PulseiraMessageResponse> => {
+    const response = await api.delete(`/comanda/pulseiras/${numeroPulseira}`);
+    return response.data;
+  }
+};
+
+
+// Serviços para Cartão
+export const cartaoService = {
+  // Criar cartão
+  create: async (data: CreateCartaoRequest): Promise<any> => {
+    const response = await api.post("/comanda/cartoes", data);
+    return response.data;
+  },
+  
+  // Listar todos os cartões
+  listAll: async (): Promise<CartaoResponse> => {
+    const response = await api.get("/comanda/cartoes");
+    return response.data;
+  },
+  
+  // Listar cartões vinculados a um cartão principal
+  listVinculados: async (numeroCartao: string): Promise<CartaoResponse> => {
+    const response = await api.get(`/comanda/cartoes/${numeroCartao}/vinculados`);
+    return response.data;
+  },
+  
+  // Vincular cartão secundário a um principal
+  vincular: async (data: VincularCartaoRequest): Promise<CartaoMessageResponse> => {
+    const response = await api.post("/comanda/cartoes/vincular", data);
+    return response.data;
+  },
+  
+  // Desvincular cartão
+  desvincular: async (numeroCartao: string): Promise<CartaoMessageResponse> => {
+    const response = await api.delete(`/comanda/cartoes/${numeroCartao}/desvincular`);
+    return response.data;
+  },
+  
+  // Desativar cartão
+  desativar: async (numeroCartao: string): Promise<CartaoMessageResponse> => {
+    const response = await api.delete(`/comanda/cartoes/${numeroCartao}`);
+    return response.data;
+  },
+  
+  // Abrir comanda com cartão
+  abrirComanda: async (numeroCartao: string, nomeCliente: string): Promise<AbrirComandaCartaoResponse> => {
+    const response = await api.post(`/comanda/abrir/cartao?numeroCartao=${numeroCartao}&nomeCliente=${nomeCliente}`);
+    return response.data;
+  },
+  
+  // Buscar comanda do cartão
+  buscarComanda: async (numeroCartao: string): Promise<Comanda> => {
+    const response = await api.get(`/comanda/buscar?identificador=${numeroCartao}&tipo=CARTAO_EDIFICACAO`);
+    return response.data;
+  }
+};
+
+// Serviços para Cliente
+export const clienteService = {
+  // Listar clientes de uma comanda
+  listByComanda: async (comandaId: number): Promise<ClienteResponse> => {
+    const response = await api.get(`/comanda/${comandaId}/clientes`);
+    return response.data;
+  }
+};
+
 
 
 export default api;

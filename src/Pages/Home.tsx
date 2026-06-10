@@ -7,14 +7,18 @@ import ModalProduto from "../Components/ModalProduto";
 import ModalEditarProduto from "../Components/ModalEditarProduto";
 import ModalConfirmarDelete from "../Components/ModalConfirmarDelete";
 import HappyHourManager from "../Components/HappyHourManager";
+import MesasManager from "../Components/MesasManager";
+import PulseirasManager from "../Components/PulseirasManager";
 import { categoriaService, produtoService, authService } from "../service/api";
 import type { Categoria, Produto } from "../service/types";
 import { useTokenValidation } from "../hooks/useTokenValidation";
 import Dashboard from "../Components/Dashboard";
+import CartoesManager from "../Components/CartoesManager";
+import VendasManager from "../Components/VendasManager";
 
 export default function Home() {
   const navigate = useNavigate();
-  const { isValidating, isAuthenticated, validateToken } = useTokenValidation();
+  const { isValidating, isAuthenticated } = useTokenValidation();
   const [activeMenu, setActiveMenu] = useState("dashboard");
   const [showCategoriaModal, setShowCategoriaModal] = useState(false);
   const [showProdutoModal, setShowProdutoModal] = useState(false);
@@ -98,6 +102,8 @@ export default function Home() {
   // Renderizar conteúdo
   const renderContent = () => {
     switch (activeMenu) {
+      case "dashboard":
+        return <Dashboard />;
       case "produtos":
         return (
           <ProdutosList
@@ -110,14 +116,43 @@ export default function Home() {
         );
       case "happyhour":
         return <HappyHourManager />;
-      default:
+      case "mesas":
+        return <MesasManager />;
+      case "pulseiras":
+        return <PulseirasManager />;
+      case "cartoes":
+        return <CartoesManager />;
+      case "vendas":
+        return <VendasManager />;
+      case "configuracoes":
         return (
           <div>
-            <h1 className="text-3xl font-bold text-[#F5F5FA]">Dashboard</h1>
-            <p className="text-[#B8B8C8] mt-2">Bem-vindo ao VynPay.</p>
+            <h1 className="text-3xl font-bold text-[#F5F5FA]">Configurações Gerais</h1>
+            <p className="text-[#B8B8C8] mt-2">Configure as preferências do sistema.</p>
           </div>
         );
-      case "dashboard":
+      case "pagamentos":
+        return (
+          <div>
+            <h1 className="text-3xl font-bold text-[#F5F5FA]">Pagamentos</h1>
+            <p className="text-[#B8B8C8] mt-2">Gerencie os pagamentos do sistema.</p>
+          </div>
+        );
+      case "clientes":
+        return (
+          <div>
+            <h1 className="text-3xl font-bold text-[#F5F5FA]">Clientes</h1>
+            <p className="text-[#B8B8C8] mt-2">Gerencie seus clientes.</p>
+          </div>
+        );
+      case "pedidos":
+        return (
+          <div>
+            <h1 className="text-3xl font-bold text-[#F5F5FA]">Pedidos</h1>
+            <p className="text-[#B8B8C8] mt-2">Gerencie os pedidos.</p>
+          </div>
+        );
+      default:
         return <Dashboard />;
     }
   };
@@ -149,6 +184,7 @@ export default function Home() {
         {renderContent()}
       </main>
 
+      {/* Modals */}
       <ModalCategoria
         isOpen={showCategoriaModal}
         onClose={() => setShowCategoriaModal(false)}

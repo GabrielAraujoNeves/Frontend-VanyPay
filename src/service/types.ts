@@ -59,7 +59,6 @@ export interface UpdateProdutoRequest {
   categoriaId: number;
 }
 
-
 // Happy Hour
 export interface HappyHourConfig {
   discountPercent: number;
@@ -69,7 +68,6 @@ export interface HappyHourConfig {
   productIds: number[];
 }
 
-// Resposta da configuração ativa (GET /happy-hour/config/active)
 export interface ActiveConfigResponse {
   discountPercent: number;
   startTime: string;
@@ -78,7 +76,6 @@ export interface ActiveConfigResponse {
   productIds: number[];
 }
 
-// Resposta completa da configuração (POST /happy-hour/config)
 export interface HappyHourConfigResponse {
   message: string;
   config: {
@@ -130,11 +127,17 @@ export interface RelatorioDiaResponse {
 
 export interface Comanda {
   id: number;
-  mesa: string;
+  numeroComanda: string;
+  dataAbertura: string;
+  dataFechamento: string | null;
+  status: 'ABERTA' | 'FECHADA' | 'CANCELADA';
   valorTotal: number;
-  status: string;
-  createdAt: string;
-  items: ComandaItem[];
+  tipoComanda: string;
+  identificadorComanda: string;
+  mesaId: number | null;
+  cliente: string | null;
+  mesa?: string;
+  items?: ComandaItem[];
 }
 
 export interface ComandaItem {
@@ -144,3 +147,116 @@ export interface ComandaItem {
   precoUnitario: number;
   subtotal: number;
 }
+
+// Tipos para Mesas
+export interface Mesa {
+  id: number;
+  numeroMesa: number;
+  capacidade: number;
+  isOcupada: boolean;
+  createdAt: string;
+}
+
+export interface MesaResponse {
+  total: number;
+  mesas: Mesa[];
+}
+
+export interface CreateMesaRequest {
+  numeroMesa: number;
+  capacidade: number;
+}
+
+export type TipoComanda = 'MESA' | 'PULSEIRA' | 'CARTAO';
+
+export interface AbrirComandaResponse {
+  numeroComanda: string;
+  tipoComanda: TipoComanda;
+  message: string;
+  identificador: string;
+  dataAbertura: string;
+}
+
+export interface Pulseira {
+  id: number;
+  numeroPulseira: string;
+  nomeCliente: string;
+  pulseiraAgrupadaCom: string | null;
+  isAtivo: boolean;
+  createdAt: string;
+}
+
+export interface PulseiraResponse {
+  total: number;
+  pulseiras: Pulseira[];
+}
+
+export interface CreatePulseiraRequest {
+  numeroPulseira: string;
+  nomeCliente: string;
+}
+
+export interface AgruparPulseiraRequest {
+  pulseiraPrincipal: string;
+  pulseiraSecundaria: string;
+}
+
+export interface PulseiraMessageResponse {
+  message: string;
+}
+
+// Tipos para Cartões
+export interface Cartao {
+  id: number;
+  numeroCartao: string;
+  nomeCliente: string;
+  cartaoVinculado: string | null;
+  isAtivo: boolean;
+  createdAt: string;
+}
+
+export interface CartaoResponse {
+  total: number;
+  cartoes: Cartao[];
+}
+
+export interface CreateCartaoRequest {
+  numeroCartao: string;
+  nomeCliente: string;
+}
+
+export interface VincularCartaoRequest {
+  cartaoPrincipal: string;
+  cartaoSecundario: string;
+}
+
+export interface CartaoMessageResponse {
+  message: string;
+}
+
+export interface AbrirComandaCartaoResponse {
+  numeroComanda: string;
+  tipoComanda: string;
+  message: string;
+  identificador: string;
+  dataAbertura: string;
+}
+
+
+// Tipos para Cliente
+export interface Cliente {
+  id: number;
+  nome: string;
+  valorTotal: number;
+  comanda: Comanda;
+  createdAt: string;
+}
+
+export interface ClienteResponse {
+  total: number;
+  clientes: Cliente[];
+}
+
+
+
+
