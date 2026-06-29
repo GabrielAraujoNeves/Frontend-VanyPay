@@ -8,7 +8,7 @@ import {
   RefreshCw,
   Clock,
   Percent,
-  CreditCard
+  AlertCircle
 } from "lucide-react";
 import {
   AreaChart,
@@ -25,49 +25,32 @@ import {
   Legend,
   ResponsiveContainer
 } from "recharts";
-import { relatorioService } from "../service/api";
+import { relatorioService, dashboardService } from "../service/api";
+import type { DashboardRelatorio, RelatorioDiaResponse, Comanda, ComandaItem } from "../service/types";
 
 // Cores para o gráfico de pizza
 const COLORS = ['#7B2CFF', '#9A4DFF', '#B47DFF', '#D4B8FF', '#7B2CFF80'];
 
-// Tipos locais
-interface ComandaItem {
-  id: number;
-  produtoNome: string;
-  quantidade: number;
-  precoUnitario: number;
-  subtotal: number;
-}
-
-interface Comanda {
-  id: number;
-  mesa: string;
-  valorTotal: number;
-  status: string;
-  createdAt: string;
-  items: ComandaItem[];
-}
-
-interface RelatorioDiaResponse {
-  data: string;
-  quantidadeComandas: number;
-  totalVendas: number;
-  comandas: Comanda[];
-}
-
 export default function Dashboard() {
   const [relatorio, setRelatorio] = useState<RelatorioDiaResponse | null>(null);
+  const [dashboardData, setDashboardData] = useState<DashboardRelatorio | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
   const loadData = async () => {
     setLoading(true);
     try {
+      // Carregar dados do dashboard
+      const dashboardResponse = await dashboardService.getDashboard();
+      console.log("Dashboard Data:", dashboardResponse);
+      setDashboardData(dashboardResponse);
+
+      // Carregar relatório do dia
       const response = await relatorioService.getRelatorioDia();
       console.log("Relatório do dia:", response);
       setRelatorio(response);
     } catch (error) {
-      console.error("Erro ao carregar relatório:", error);
+      console.error("Erro ao carregar dados:", error);
     } finally {
       setLoading(false);
     }
@@ -107,15 +90,21 @@ export default function Dashboard() {
     }
     
     relatorio.comandas.forEach((comanda: Comanda) => {
-      const hora = new Date(comanda.createdAt).getHours();
-      const horaKey = `${hora.toString().padStart(2, '0')}:00`;
-      horas[horaKey] += comanda.valorTotal;
+      // Usar dataAbertura em vez de createdAt
+      if (comanda.dataAbertura) {
+        const hora = new Date(comanda.dataAbertura).getHours();
+        const horaKey = `${hora.toString().padStart(2, '0')}:00`;
+        horas[horaKey] += comanda.valorTotal || 0;
+      }
     });
     
     return Object.entries(horas).map(([hora, valor]) => ({
       hora,
       vendas: valor,
-      quantidade: relatorio.comandas.filter((c: Comanda) => new Date(c.createdAt).getHours() === parseInt(hora)).length
+      quantidade: relatorio.comandas.filter((c: Comanda) => {
+        if (!c.dataAbertura) return false;
+        return new Date(c.dataAbertura).getHours() === parseInt(hora);
+      }).length
     }));
   };
 
@@ -153,6 +142,88 @@ export default function Dashboard() {
   const produtosMaisVendidos = getProdutosMaisVendidos();
   const hasData = relatorio && relatorio.quantidadeComandas > 0;
 
+  // Cards de métricas do dashboard
+  const metricCards = [
+    {
+      id: 'vendasHoje',
+      title: 'Vendas Hoje',
+      value: formatCurrency(dashboardData?.vendasHoje || 0),
+      icon: DollarSign,
+      color: '#7B2CFF'
+    },
+    {
+      id: 'comandasAbertas',
+      title: 'Comandas Abertas',
+      value: dashboardData?.comandasAbertas || 0,
+      icon: ShoppingBag,
+      color: '#FF6B6B'
+    },
+    {
+      id: 'vendasMes',
+      title: 'Vendas do Mês',
+      value: formatCurrency(dashboardData?.vendasMes || 0),
+      icon: TrendingUp,
+      color: '#4ECDC4'
+    },
+    {
+      id: 'vendasAno',
+      title: 'Vendas do Ano',
+      value: formatCurrency(dashboardData?.vendasAno || 0),
+      icon: Calendar,
+      color: '#FFD93D'
+    },
+    {
+      id: 'itensPerdidos',
+      title: 'Itens Perdidos Hoje',
+      value: dashboardData?.itensPerdidosHoje || 0,
+      icon: AlertCircle,
+      color: '#FF6B6B'
+    }
+  ];
+
+  // Custom formatters para o Tooltip
+  const currencyFormatter = (value: any) => {
+    if (typeof value === 'number') {
+      return [formatCurrency(value), 'Valor'];
+    }
+    return [value, 'Valor'];
+  };
+
+  const quantityFormatter = (value: any) => {
+    if (typeof value === 'number') {
+      return [value.toString(), 'Quantidade'];
+    }
+    return [value, 'Quantidade'];
+  };
+
+  // Função para obter a cor do status
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'ABERTA':
+        return 'bg-yellow-500/20 text-yellow-400';
+      case 'FECHADA':
+        return 'bg-green-500/20 text-green-400';
+      case 'CANCELADA':
+        return 'bg-red-500/20 text-red-400';
+      default:
+        return 'bg-gray-500/20 text-gray-400';
+    }
+  };
+
+  // Função para obter o texto do status
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'ABERTA':
+        return 'ABERTA';
+      case 'FECHADA':
+        return 'FECHADA';
+      case 'CANCELADA':
+        return 'CANCELADA';
+      default:
+        return status || 'PENDENTE';
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -162,7 +233,14 @@ export default function Dashboard() {
             <TrendingUp size={28} className="text-[#7B2CFF]" />
             Dashboard
           </h1>
-          <p className="text-[#B8B8C8] mt-1">Visão geral das vendas e métricas do negócio</p>
+          <p className="text-[#B8B8C8] mt-1">
+            Visão geral das vendas e métricas do negócio
+            {dashboardData?.dataAtual && (
+              <span className="ml-2 text-[#7B2CFF]">
+                • {formatDate(dashboardData.dataAtual)}
+              </span>
+            )}
+          </p>
         </div>
         
         <div className="flex gap-3">
@@ -185,73 +263,24 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Cards de Métricas */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-gradient-to-br from-[#12121A] to-[#0a0a12] rounded-2xl border border-[#7B2CFF]/20 p-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-[#B8B8C8] text-sm">Total de Vendas</p>
-              <p className="text-3xl font-bold text-[#F5F5FA] mt-2">
-                {formatCurrency(relatorio?.totalVendas || 0)}
-              </p>
-            </div>
-            <div className="p-3 bg-[#7B2CFF]/10 rounded-full">
-              <DollarSign size={24} className="text-[#7B2CFF]" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-center gap-2 text-sm">
-            <span className="text-[#B8B8C8]">Hoje</span>
-            <span className="text-green-400">↑ 0%</span>
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-[#12121A] to-[#0a0a12] rounded-2xl border border-[#7B2CFF]/20 p-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-[#B8B8C8] text-sm">Comandas Realizadas</p>
-              <p className="text-3xl font-bold text-[#F5F5FA] mt-2">
-                {relatorio?.quantidadeComandas || 0}
-              </p>
-            </div>
-            <div className="p-3 bg-[#7B2CFF]/10 rounded-full">
-              <ShoppingBag size={24} className="text-[#7B2CFF]" />
+      {/* Cards de Métricas do Dashboard */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        {metricCards.map((card) => (
+          <div
+            key={card.id}
+            className="bg-gradient-to-br from-[#12121A] to-[#0a0a12] rounded-2xl border border-[#7B2CFF]/20 p-5 transition-all hover:border-[#7B2CFF]/50"
+          >
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-[#B8B8C8] text-xs uppercase tracking-wider">{card.title}</p>
+                <p className="text-2xl font-bold text-[#F5F5FA] mt-1">{card.value}</p>
+              </div>
+              <div className="p-2 rounded-lg" style={{ backgroundColor: `${card.color}20` }}>
+                <card.icon size={18} style={{ color: card.color }} />
+              </div>
             </div>
           </div>
-          <div className="mt-4 flex items-center gap-2 text-sm">
-            <span className="text-[#B8B8C8]">Total de pedidos</span>
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-[#12121A] to-[#0a0a12] rounded-2xl border border-[#7B2CFF]/20 p-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-[#B8B8C8] text-sm">Ticket Médio</p>
-              <p className="text-3xl font-bold text-[#F5F5FA] mt-2">
-                {formatCurrency((relatorio?.totalVendas || 0) / (relatorio?.quantidadeComandas || 1))}
-              </p>
-            </div>
-            <div className="p-3 bg-[#7B2CFF]/10 rounded-full">
-              <CreditCard size={24} className="text-[#7B2CFF]" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-center gap-2 text-sm">
-            <span className="text-[#B8B8C8]">Por comanda</span>
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-br from-[#12121A] to-[#0a0a12] rounded-2xl border border-[#7B2CFF]/20 p-6">
-          <div className="flex justify-between items-start">
-            <div>
-              <p className="text-[#B8B8C8] text-sm">Data do Relatório</p>
-              <p className="text-xl font-bold text-[#F5F5FA] mt-2">
-                {formatDate(selectedDate)}
-              </p>
-            </div>
-            <div className="p-3 bg-[#7B2CFF]/10 rounded-full">
-              <Calendar size={24} className="text-[#7B2CFF]" />
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
 
       {loading ? (
@@ -262,7 +291,7 @@ export default function Dashboard() {
       ) : !hasData ? (
         <div className="bg-[#12121A] rounded-2xl border border-[#7B2CFF]/20 p-12 text-center">
           <TrendingDown size={48} className="mx-auto text-[#B8B8C8] mb-4" />
-          <p className="text-[#F5F5FA] font-semibold text-lg">Nenhuma venda registrada</p>
+          <p className="text-[#F5F5FA] font-semibold text-lg">Nenhuma venda registrada hoje</p>
           <p className="text-[#B8B8C8] mt-2">Não há dados de vendas para o dia selecionado</p>
         </div>
       ) : (
@@ -287,7 +316,7 @@ export default function Dashboard() {
                 <Tooltip
                   contentStyle={{ backgroundColor: '#12121A', border: '1px solid #7B2CFF', borderRadius: '12px' }}
                   labelStyle={{ color: '#F5F5FA' }}
-                  formatter={(value: number) => [formatCurrency(value), 'Valor Vendido']}
+                  formatter={currencyFormatter}
                 />
                 <Legend />
                 <Area type="monotone" dataKey="vendas" stroke="#7B2CFF" fillOpacity={1} fill="url(#colorVendas)" name="Valor Vendido" />
@@ -311,7 +340,7 @@ export default function Dashboard() {
                     <Tooltip
                       contentStyle={{ backgroundColor: '#12121A', border: '1px solid #7B2CFF', borderRadius: '12px' }}
                       labelStyle={{ color: '#F5F5FA' }}
-                      formatter={(value: number) => [value, 'Quantidade']}
+                      formatter={quantityFormatter}
                     />
                     <Bar dataKey="quantidade" fill="#7B2CFF" radius={[0, 8, 8, 0]} />
                   </BarChart>
@@ -345,7 +374,7 @@ export default function Dashboard() {
                     </Pie>
                     <Tooltip
                       contentStyle={{ backgroundColor: '#12121A', border: '1px solid #7B2CFF', borderRadius: '12px' }}
-                      formatter={(value: number) => [value, 'Quantidade']}
+                      formatter={quantityFormatter}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -373,21 +402,19 @@ export default function Dashboard() {
                   <tbody>
                     {relatorio.comandas.slice(0, 10).map((comanda: Comanda) => (
                       <tr key={comanda.id} className="border-b border-gray-800/50 hover:bg-[#7B2CFF]/5 transition-all">
-                        <td className="py-3 text-[#F5F5FA]">{formatTime(comanda.createdAt)}</td>
-                        <td className="py-3 text-[#F5F5FA]">{comanda.mesa || 'Não informado'}</td>
+                        <td className="py-3 text-[#F5F5FA]">
+                          {comanda.dataAbertura ? formatTime(comanda.dataAbertura) : 'N/A'}
+                        </td>
+                        <td className="py-3 text-[#F5F5FA]">
+                          {comanda.mesa || comanda.identificadorComanda || 'Não informado'}
+                        </td>
                         <td className="py-3">
-                          <span className={`px-2 py-1 rounded-full text-xs ${
-                            comanda.status === 'PAGO' || comanda.status === 'FINALIZADO'
-                              ? 'bg-green-500/20 text-green-400'
-                              : comanda.status === 'CANCELADO'
-                              ? 'bg-red-500/20 text-red-400'
-                              : 'bg-yellow-500/20 text-yellow-400'
-                          }`}>
-                            {comanda.status || 'PENDENTE'}
+                          <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(comanda.status)}`}>
+                            {getStatusText(comanda.status)}
                           </span>
                         </td>
                         <td className="py-3 text-right text-[#F5F5FA] font-semibold">
-                          {formatCurrency(comanda.valorTotal)}
+                          {formatCurrency(comanda.valorTotal || 0)}
                         </td>
                       </tr>
                     ))}

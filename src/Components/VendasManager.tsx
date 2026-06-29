@@ -2,10 +2,12 @@ import { useState, useEffect } from "react";
 import { 
   ShoppingCart, Table, Sparkles, Wallet, Search, 
   ChevronRight, Plus, Minus, Trash2, X, RefreshCw,
-  Users, CreditCard, Tag, DollarSign, User
+  Users, CreditCard, Tag, DollarSign, User, CheckCircle,
+  Package, History
 } from "lucide-react";
-import { mesaService, pulseiraService, cartaoService, produtoService } from "../service/api";
-import type { Mesa, Pulseira, Cartao, Produto } from "../service/types";
+import { mesaService, pulseiraService, cartaoService, produtoService, clienteService } from "../service/api";
+import type { Mesa, Pulseira, Cartao, Produto, ClienteComItem, Comanda } from "../service/types";
+import ModalRemoverItem from "./ModalRemoverItem";
 
 type TipoVenda = "mesa" | "pulseira" | "cartao";
 
@@ -22,32 +24,31 @@ interface ClienteComanda {
   nome: string;
   valorTotal: number;
   itens: any[];
-}
-
-interface MesaComDados extends Mesa {
-  comanda?: {
-    comandaId: number;
-    numeroComanda: string;
-    dataAbertura: string;
-    valorTotal: number;
-    clientes: ClienteComanda[];
-  };
+  pago?: boolean;
 }
 
 export default function VendasManager() {
   const [tipoVenda, setTipoVenda] = useState<TipoVenda>("mesa");
-  const [mesas, setMesas] = useState<MesaComDados[]>([]);
+  const [mesas, setMesas] = useState<Mesa[]>([]);
   const [pulseiras, setPulseiras] = useState<Pulseira[]>([]);
   const [cartoes, setCartoes] = useState<Cartao[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [clientes, setClientes] = useState<ClienteComanda[]>([]);
-  const [comandaInfo, setComandaInfo] = useState<any>(null);
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [carrinho, setCarrinho] = useState<ItemPedido[]>([]);
   const [showProdutos, setShowProdutos] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [clienteSelecionado, setClienteSelecionado] = useState<ClienteComanda | null>(null);
+  const [loadingClientes, setLoadingClientes] = useState(false);
+  const [errorMensagem, setErrorMensagem] = useState<string | null>(null);
+  const [comandaIdAtual, setComandaIdAtual] = useState<number | null>(null);
+  const [adicionandoProduto, setAdicionandoProduto] = useState(false);
+  const [mensagemSucesso, setMensagemSucesso] = useState<string | null>(null);
+  const [mostrarHistorico, setMostrarHistorico] = useState(false);
+  const [showRemoverModal, setShowRemoverModal] = useState(false);
+  const [itemParaRemover, setItemParaRemover] = useState<any>(null);
+  const [removendoItem, setRemovendoItem] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -64,7 +65,6 @@ export default function VendasManager() {
         setCartoes(response.cartoes || []);
       }
       
-      // Carregar produtos
       const produtosResponse = await produtoService.listAll();
       setProdutos(produtosResponse.produtos || []);
     } catch (error) {
@@ -78,31 +78,164 @@ export default function VendasManager() {
     loadData();
   }, [tipoVenda]);
 
+  const buscarClientesDaComanda = async (comandaId: number) => {
+    setLoadingClientes(true);
+    setErrorMensagem(null);
+    try {
+      console.log(`🔍 Buscando clientes para comanda ID: ${comandaId}`);
+      
+      const response = await clienteService.listByComanda(comandaId);
+      console.log("✅ Clientes da comanda:", response);
+      
+      if (response && response.clientes) {
+        setClientes(response.clientes);
+        setComandaIdAtual(comandaId);
+        
+        // Se tiver cliente selecionado, atualizar seus dados
+        if (clienteSelecionado) {
+          const clienteAtualizado = response.clientes.find(c => c.id === clienteSelecionado.id);
+          if (clienteAtualizado) {
+            setClienteSelecionado(clienteAtualizado);
+          }
+        }
+      } else {
+        setClientes([]);
+        setErrorMensagem("Nenhum cliente encontrado para esta comanda");
+      }
+    } catch (error: any) {
+      console.error("❌ Erro ao buscar clientes:", error);
+      setClientes([]);
+      setErrorMensagem(error.response?.data?.message || "Erro ao carregar clientes");
+    } finally {
+      setLoadingClientes(false);
+    }
+  };
+
+  const buscarComandaDaMesa = async (mesaId: number) => {
+    setLoadingClientes(true);
+    setErrorMensagem(null);
+    try {
+      console.log(`🔍 Buscando comanda para mesa ID: ${mesaId}`);
+      
+      const comanda = await mesaService.buscarComandaDaMesa(mesaId);
+      console.log("✅ Comanda encontrada:", comanda);
+      
+      if (comanda && comanda.id) {
+        setComandaIdAtual(comanda.id);
+        await buscarClientesDaComanda(comanda.id);
+      } else {
+        setClientes([]);
+        setErrorMensagem("Esta mesa não possui uma comanda ativa");
+      }
+    } catch (error: any) {
+      console.error("❌ Erro ao buscar comanda da mesa:", error);
+      setClientes([]);
+      setErrorMensagem(error.response?.data?.message || "Erro ao carregar dados da mesa");
+    } finally {
+      setLoadingClientes(false);
+    }
+  };
+
+  const buscarComandaPulseira = async (numeroPulseira: string) => {
+    setLoadingClientes(true);
+    setErrorMensagem(null);
+    try {
+      console.log(`🔍 Buscando comanda para pulseira: ${numeroPulseira}`);
+      
+      const response = await pulseiraService.buscarComanda(numeroPulseira);
+      console.log("✅ Comanda da pulseira:", response);
+      
+      if (response && response.id) {
+        setComandaIdAtual(response.id);
+        await buscarClientesDaComanda(response.id);
+      } else {
+        setClientes([]);
+        setErrorMensagem("Nenhuma comanda encontrada para esta pulseira");
+      }
+    } catch (error) {
+      console.error("❌ Erro ao buscar comanda da pulseira:", error);
+      setClientes([]);
+      setErrorMensagem("Erro ao carregar dados da pulseira");
+    } finally {
+      setLoadingClientes(false);
+    }
+  };
+
+  const buscarComandaCartao = async (numeroCartao: string) => {
+    setLoadingClientes(true);
+    setErrorMensagem(null);
+    try {
+      console.log(`🔍 Buscando comanda para cartão: ${numeroCartao}`);
+      
+      const response = await cartaoService.buscarComanda(numeroCartao);
+      console.log("✅ Comanda do cartão:", response);
+      
+      if (response && response.id) {
+        setComandaIdAtual(response.id);
+        await buscarClientesDaComanda(response.id);
+      } else {
+        setClientes([]);
+        setErrorMensagem("Nenhuma comanda encontrada para este cartão");
+      }
+    } catch (error) {
+      console.error("❌ Erro ao buscar comanda do cartão:", error);
+      setClientes([]);
+      setErrorMensagem("Erro ao carregar dados do cartão");
+    } finally {
+      setLoadingClientes(false);
+    }
+  };
+
   const handleSelectItem = async (item: any) => {
+    console.log(`🖱️ Selecionando item:`, item);
+    
     setSelectedItem(item);
     setShowProdutos(true);
     setClienteSelecionado(null);
+    setCarrinho([]);
+    setErrorMensagem(null);
+    setClientes([]);
+    setComandaIdAtual(null);
+    setMensagemSucesso(null);
+    setMostrarHistorico(false);
+    setShowRemoverModal(false);
+    setItemParaRemover(null);
     
-    if (tipoVenda === "mesa" && item.comanda) {
-      // Para mesa, os clientes já vêm no objeto comanda
-      setClientes(item.comanda.clientes || []);
-      setComandaInfo({
-        comandaId: item.comanda.comandaId,
-        numeroComanda: item.comanda.numeroComanda,
-        valorTotal: item.comanda.valorTotal
-      });
-    } else {
-      setClientes([]);
-      setComandaInfo(null);
+    if (tipoVenda === "mesa") {
+      if (item.isOcupada) {
+        await buscarComandaDaMesa(item.id);
+      } else {
+        setErrorMensagem("Esta mesa está livre");
+        console.log("ℹ️ Mesa está livre");
+      }
+    } else if (tipoVenda === "pulseira") {
+      if (item.isAtivo) {
+        await buscarComandaPulseira(item.numeroPulseira);
+      } else {
+        setErrorMensagem("Esta pulseira está inativa");
+      }
+    } else if (tipoVenda === "cartao") {
+      if (item.isAtivo) {
+        await buscarComandaCartao(item.numeroCartao);
+      } else {
+        setErrorMensagem("Este cartão está inativo");
+      }
     }
   };
 
   const handleSelectCliente = (cliente: ClienteComanda) => {
+    console.log(`👤 Selecionando cliente: ${cliente.nome} (ID: ${cliente.id})`);
     setClienteSelecionado(cliente);
-    setCarrinho([]); // Limpar carrinho ao trocar de cliente
+    setCarrinho([]);
+    setMensagemSucesso(null);
+    setMostrarHistorico(true);
+    setShowRemoverModal(false);
+    setItemParaRemover(null);
   };
 
   const handleAddProduto = (produto: Produto) => {
+    console.log(`📦 Adicionando produto: ${produto.nome} (R$ ${produto.preco.toFixed(2)})`);
+    
     const existingItem = carrinho.find(item => item.produtoId === produto.id);
     if (existingItem) {
       setCarrinho(carrinho.map(item =>
@@ -122,6 +255,8 @@ export default function VendasManager() {
   };
 
   const handleUpdateQuantidade = (produtoId: number, quantidade: number) => {
+    console.log(`🔄 Atualizando quantidade do produto ${produtoId} para ${quantidade}`);
+    
     if (quantidade <= 0) {
       setCarrinho(carrinho.filter(item => item.produtoId !== produtoId));
     } else {
@@ -134,26 +269,109 @@ export default function VendasManager() {
   };
 
   const handleRemoveProduto = (produtoId: number) => {
+    console.log(`🗑️ Removendo produto ${produtoId} do carrinho`);
     setCarrinho(carrinho.filter(item => item.produtoId !== produtoId));
   };
 
+  const handleAbrirRemoverItem = (item: any) => {
+    setItemParaRemover(item);
+    setShowRemoverModal(true);
+  };
+
+  const handleConfirmarRemocao = async (justificativa: string) => {
+    if (!comandaIdAtual || !clienteSelecionado || !itemParaRemover) return;
+    
+    setRemovendoItem(true);
+    try {
+      console.log(`🗑️ Removendo item ${itemParaRemover.id} do cliente ${clienteSelecionado.id}`);
+      
+      const response = await clienteService.removerItem(
+        comandaIdAtual,
+        clienteSelecionado.id,
+        itemParaRemover.id,
+        justificativa
+      );
+      
+      console.log("✅ Item removido:", response);
+      
+      setMensagemSucesso(`Item "${itemParaRemover.nome}" removido com sucesso!`);
+      
+      // Recarregar os clientes para atualizar a lista
+      await buscarClientesDaComanda(comandaIdAtual);
+      
+      setShowRemoverModal(false);
+      setItemParaRemover(null);
+      
+      setTimeout(() => {
+        setMensagemSucesso(null);
+      }, 5000);
+      
+    } catch (error: any) {
+      console.error("❌ Erro ao remover item:", error);
+      setErrorMensagem(error.response?.data?.message || "Erro ao remover item");
+    } finally {
+      setRemovendoItem(false);
+    }
+  };
+
   const handleFinalizarPedido = async () => {
-    console.log("Finalizando pedido:", { 
-      selectedItem, 
-      clienteSelecionado, 
-      carrinho, 
-      comandaInfo 
-    });
+    console.log("📝 Finalizando pedido...");
+    console.log("  - Comanda ID:", comandaIdAtual);
+    console.log("  - Cliente:", clienteSelecionado);
+    console.log("  - Itens:", carrinho);
+    console.log("  - Total:", totalCarrinho);
     
-    // Aqui você vai implementar a API para adicionar itens à comanda
-    // Por enquanto, apenas simulamos
-    alert(`Pedido finalizado para ${clienteSelecionado?.nome || "cliente"}!\nTotal: R$ ${totalCarrinho.toFixed(2)}`);
-    
-    // Limpar carrinho
-    setCarrinho([]);
-    setShowProdutos(false);
-    setSelectedItem(null);
-    setClienteSelecionado(null);
+    if (!comandaIdAtual || !clienteSelecionado) {
+      console.error("❌ Erro: Cliente ou comanda não selecionados");
+      alert("Selecione um cliente para finalizar o pedido");
+      return;
+    }
+
+    if (carrinho.length === 0) {
+      console.error("❌ Erro: Carrinho vazio");
+      alert("Adicione pelo menos um produto ao pedido");
+      return;
+    }
+
+    setAdicionandoProduto(true);
+    setMensagemSucesso(null);
+    setErrorMensagem(null);
+
+    try {
+      console.log(`🔄 Adicionando ${carrinho.length} itens à comanda...`);
+      
+      for (const item of carrinho) {
+        console.log(`  - Adicionando: ${item.nome} (${item.quantidade}x R$ ${item.preco.toFixed(2)})`);
+        
+        const response = await clienteService.adicionarProduto(
+          comandaIdAtual,
+          clienteSelecionado.id,
+          {
+            produtoId: item.produtoId,
+            quantidade: item.quantidade
+          }
+        );
+        console.log(`  ✅ Produto adicionado:`, response);
+      }
+
+      console.log("✅ Pedido finalizado com sucesso!");
+      setMensagemSucesso(`Pedido finalizado para ${clienteSelecionado.nome}! Total: R$ ${totalCarrinho.toFixed(2)}`);
+      
+      console.log("🔄 Recarregando clientes da comanda...");
+      await buscarClientesDaComanda(comandaIdAtual);
+      
+      setCarrinho([]);
+      
+      setTimeout(() => {
+        setMensagemSucesso(null);
+      }, 5000);
+      
+    } catch (error: any) {
+      console.error("❌ Erro ao adicionar produtos:", error);
+      setErrorMensagem(error.response?.data?.message || "Erro ao adicionar produtos à comanda");
+    } finally {
+      setAdicionandoProduto(false);
+    }
   };
 
   const totalCarrinho = carrinho.reduce((sum, item) => sum + item.subtotal, 0);
@@ -183,10 +401,8 @@ export default function VendasManager() {
               <div>
                 <h3 className="font-semibold text-[#F5F5FA]">Mesa {mesa.numeroMesa}</h3>
                 <p className="text-[#B8B8C8] text-sm">Capacidade: {mesa.capacidade} pessoas</p>
-                {mesa.comanda && (
-                  <p className="text-[#B8B8C8] text-xs">
-                    Comanda: {mesa.comanda.numeroComanda}
-                  </p>
+                {mesa.isOcupada && (
+                  <p className="text-[#B8B8C8] text-xs text-green-400">✅ Ocupada</p>
                 )}
               </div>
             </div>
@@ -365,115 +581,208 @@ export default function VendasManager() {
               </div>
             ) : (
               <>
-                {/* Informações da Comanda */}
-                {comandaInfo && (
-                  <div className="mb-4 p-3 bg-[#08080D] rounded-xl">
-                    <p className="text-[#B8B8C8] text-sm">Comanda</p>
-                    <p className="text-[#F5F5FA] font-semibold">{comandaInfo.numeroComanda}</p>
-                    <p className="text-[#B8B8C8] text-xs">Total: R$ {comandaInfo.valorTotal.toFixed(2)}</p>
+                {/* Mensagem de Sucesso */}
+                {mensagemSucesso && (
+                  <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-xl text-green-400 text-sm flex items-center gap-2">
+                    <CheckCircle size={16} />
+                    {mensagemSucesso}
                   </div>
                 )}
 
-                {/* Clientes da Mesa */}
-                {clientes.length > 0 && (
-                  <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-[#F5F5FA] mb-3 flex items-center gap-2">
-                      <Users size={18} className="text-[#7B2CFF]" />
-                      Clientes na Mesa
-                    </h3>
-                    <div className="flex flex-wrap gap-2">
-                      {clientes.map((cliente) => (
-                        <button
-                          key={cliente.id}
-                          onClick={() => handleSelectCliente(cliente)}
-                          className={`px-4 py-2 rounded-xl transition-all flex items-center gap-2 ${
-                            clienteSelecionado?.id === cliente.id
-                              ? "bg-[#7B2CFF] text-white"
-                              : "bg-[#08080D] border border-gray-700 text-[#F5F5FA] hover:border-[#7B2CFF]"
-                          }`}
-                        >
-                          <User size={14} />
-                          {cliente.nome}
-                        </button>
-                      ))}
-                    </div>
+                {/* Mensagem de Erro */}
+                {errorMensagem && (
+                  <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-yellow-400 text-sm">
+                    {errorMensagem}
                   </div>
                 )}
 
-                {/* Seleção de Cliente (para pulseira/cartão) */}
-                {tipoVenda !== "mesa" && selectedItem && (
-                  <div className="mb-6 p-3 bg-[#08080D] rounded-xl">
-                    <p className="text-[#B8B8C8] text-sm">Cliente</p>
-                    <p className="text-[#F5F5FA] font-semibold">
-                      {selectedItem.nomeCliente || selectedItem.nome}
-                    </p>
+                {/* Loading Clientes */}
+                {loadingClientes ? (
+                  <div className="text-center py-4">
+                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-[#7B2CFF]"></div>
+                    <p className="text-[#B8B8C8] text-sm mt-2">Carregando clientes...</p>
                   </div>
+                ) : (
+                  <>
+                    {/* Clientes da Comanda */}
+                    {clientes.length > 0 && (
+                      <div className="mb-4">
+                        <h3 className="text-sm font-semibold text-[#F5F5FA] mb-2 flex items-center gap-2">
+                          <Users size={16} className="text-[#7B2CFF]" />
+                          Clientes da Comanda
+                        </h3>
+                        <div className="flex flex-wrap gap-2">
+                          {clientes.map((cliente) => (
+                            <button
+                              key={cliente.id}
+                              onClick={() => handleSelectCliente(cliente)}
+                              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 text-sm ${
+                                clienteSelecionado?.id === cliente.id
+                                  ? "bg-[#7B2CFF] text-white"
+                                  : "bg-[#08080D] border border-gray-700 text-[#F5F5FA] hover:border-[#7B2CFF]"
+                              }`}
+                            >
+                              <User size={12} />
+                              {cliente.nome}
+                              {cliente.valorTotal > 0 && (
+                                <span className={`text-xs ${
+                                  clienteSelecionado?.id === cliente.id
+                                    ? "text-white/80"
+                                    : "text-[#7B2CFF]"
+                                }`}>
+                                  R$ {cliente.valorTotal.toFixed(2)}
+                                </span>
+                              )}
+                              {cliente.itens && cliente.itens.length > 0 && (
+                                <span className={`text-xs ${
+                                  clienteSelecionado?.id === cliente.id
+                                    ? "text-white/60"
+                                    : "text-[#B8B8C8]"
+                                }`}>
+                                  ({cliente.itens.length})
+                                </span>
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Seleção de Cliente (para pulseira/cartão) */}
+                    {tipoVenda !== "mesa" && selectedItem && clientes.length === 0 && !errorMensagem && (
+                      <div className="mb-4 p-2 bg-[#08080D] rounded-lg">
+                        <p className="text-[#B8B8C8] text-sm">Cliente</p>
+                        <p className="text-[#F5F5FA] font-semibold">
+                          {selectedItem.nomeCliente || selectedItem.nome}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Produtos já consumidos pelo cliente (Histórico) */}
+                    {clienteSelecionado && mostrarHistorico && clienteSelecionado.itens && clienteSelecionado.itens.length > 0 && (
+                      <div className="mb-4 p-3 bg-[#08080D] rounded-xl border border-gray-700">
+                        <h4 className="text-sm font-semibold text-[#F5F5FA] mb-2 flex items-center gap-2">
+                          <History size={14} className="text-[#7B2CFF]" />
+                          Itens já consumidos por {clienteSelecionado.nome}
+                          <span className="text-[#B8B8C8] text-xs ml-auto">
+                            {clienteSelecionado.itens.length} itens
+                          </span>
+                        </h4>
+                        <div className="space-y-1">
+                          {clienteSelecionado.itens.map((item: any, index: number) => {
+                            const itemId = item.id || index;
+                            const produtoNome = item.produto?.nome || item.nome || 'Produto';
+                            const quantidade = item.quantidade || 0;
+                            const precoUnitario = item.precoUnitario || item.preco || 0;
+                            const precoTotal = item.precoTotal || (quantidade * precoUnitario);
+                            
+                            return (
+                              <div key={index} className="flex justify-between items-center text-sm group">
+                                <span className="text-[#B8B8C8]">
+                                  {produtoNome} 
+                                  <span className="text-[#F5F5FA] ml-1">x{quantidade}</span>
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[#7B2CFF]">
+                                    R$ {precoTotal.toFixed(2)}
+                                  </span>
+                                  <button
+                                    onClick={() => handleAbrirRemoverItem({
+                                      id: itemId,
+                                      nome: produtoNome,
+                                      quantidade: quantidade,
+                                      precoUnitario: precoUnitario,
+                                      precoTotal: precoTotal
+                                    })}
+                                    className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded-lg transition-all"
+                                    title="Remover item"
+                                  >
+                                    <Trash2 size={14} className="text-red-400" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          <div className="border-t border-gray-700 pt-1 mt-1">
+                            <div className="flex justify-between items-center font-semibold text-[#F5F5FA]">
+                              <span>Total consumido</span>
+                              <span className="text-[#7B2CFF]">R$ {clienteSelecionado.valorTotal.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
 
-                {/* Busca de Produtos */}
-                <div className="relative mb-4">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#B8B8C8]" size={18} />
+                {/* Busca de Produtos para Adicionar */}
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#B8B8C8]" size={16} />
                   <input
                     type="text"
-                    placeholder="Buscar produtos..."
+                    placeholder={clienteSelecionado ? `Buscar produtos para ${clienteSelecionado.nome}...` : "Buscar produtos para adicionar..."}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 bg-[#08080D] border border-gray-700 rounded-xl text-[#F5F5FA] outline-none focus:border-[#7B2CFF]"
+                    className="w-full pl-9 pr-3 py-2 bg-[#08080D] border border-gray-700 rounded-lg text-[#F5F5FA] text-sm outline-none focus:border-[#7B2CFF]"
                   />
                 </div>
 
-                {/* Lista de Produtos */}
-                <div className="grid grid-cols-2 gap-2 max-h-[200px] overflow-y-auto mb-4">
-                  {produtosFiltrados.slice(0, 6).map((produto) => (
-                    <button
-                      key={produto.id}
-                      onClick={() => handleAddProduto(produto)}
-                      className="p-3 bg-[#08080D] rounded-xl border border-gray-700 hover:border-[#7B2CFF] transition-all text-left"
-                    >
-                      <p className="font-semibold text-[#F5F5FA] text-sm">{produto.nome}</p>
-                      <p className="text-[#7B2CFF] text-sm font-bold">
-                        R$ {produto.preco.toFixed(2)}
-                      </p>
-                    </button>
-                  ))}
+                {/* Lista de Produtos para Adicionar */}
+                <div className="grid grid-cols-2 gap-2 max-h-[120px] overflow-y-auto mb-3">
+                  {produtosFiltrados
+                    .slice(0, 6)
+                    .map((produto) => (
+                      <button
+                        key={produto.id}
+                        onClick={() => handleAddProduto(produto)}
+                        className="p-2 bg-[#08080D] rounded-lg border border-gray-700 hover:border-[#7B2CFF] transition-all text-left"
+                      >
+                        <p className="font-semibold text-[#F5F5FA] text-xs">{produto.nome}</p>
+                        <p className="text-[#7B2CFF] text-xs font-bold">
+                          R$ {produto.preco.toFixed(2)}
+                        </p>
+                      </button>
+                    ))}
                 </div>
 
-                {/* Carrinho */}
-                <div className="border-t border-gray-800 pt-4">
-                  <h3 className="text-lg font-semibold text-[#F5F5FA] mb-3 flex items-center gap-2">
-                    <Tag size={18} className="text-[#7B2CFF]" />
-                    Pedido para {clienteSelecionado?.nome || (tipoVenda !== "mesa" ? selectedItem?.nomeCliente : "Cliente")}
+                {/* Carrinho (Novos Itens a serem adicionados) */}
+                <div className="border-t border-gray-800 pt-3">
+                  <h3 className="text-sm font-semibold text-[#F5F5FA] mb-2 flex items-center gap-2">
+                    <Tag size={14} className="text-[#7B2CFF]" />
+                    {clienteSelecionado ? `Adicionando para ${clienteSelecionado.nome}` : "Novos Itens"}
                   </h3>
                   
-                  <div className="space-y-2 max-h-[250px] overflow-y-auto mb-4">
+                  <div className="space-y-1.5 max-h-[150px] overflow-y-auto mb-3">
                     {carrinho.length === 0 ? (
-                      <p className="text-center text-[#B8B8C8] py-4">Nenhum item adicionado</p>
+                      <p className="text-center text-[#B8B8C8] text-sm py-2">
+                        {clienteSelecionado ? "Selecione produtos para adicionar" : "Nenhum item adicionado"}
+                      </p>
                     ) : (
                       carrinho.map((item) => (
-                        <div key={item.produtoId} className="flex justify-between items-center p-2 bg-[#08080D] rounded-xl">
+                        <div key={item.produtoId} className="flex justify-between items-center p-2 bg-[#08080D] rounded-lg">
                           <div className="flex-1">
-                            <p className="text-[#F5F5FA] text-sm">{item.nome}</p>
+                            <p className="text-[#F5F5FA] text-xs">{item.nome}</p>
                             <p className="text-[#B8B8C8] text-xs">R$ {item.preco.toFixed(2)}</p>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1">
                             <button
                               onClick={() => handleUpdateQuantidade(item.produtoId, item.quantidade - 1)}
                               className="p-1 hover:bg-[#7B2CFF]/20 rounded"
                             >
-                              <Minus size={14} className="text-[#B8B8C8]" />
+                              <Minus size={12} className="text-[#B8B8C8]" />
                             </button>
-                            <span className="text-[#F5F5FA] w-8 text-center">{item.quantidade}</span>
+                            <span className="text-[#F5F5FA] w-6 text-center text-sm">{item.quantidade}</span>
                             <button
                               onClick={() => handleUpdateQuantidade(item.produtoId, item.quantidade + 1)}
                               className="p-1 hover:bg-[#7B2CFF]/20 rounded"
                             >
-                              <Plus size={14} className="text-[#B8B8C8]" />
+                              <Plus size={12} className="text-[#B8B8C8]" />
                             </button>
                             <button
                               onClick={() => handleRemoveProduto(item.produtoId)}
-                              className="p-1 hover:bg-red-500/20 rounded ml-2"
+                              className="p-1 hover:bg-red-500/20 rounded ml-1"
                             >
-                              <Trash2 size={14} className="text-red-400" />
+                              <Trash2 size={12} className="text-red-400" />
                             </button>
                           </div>
                         </div>
@@ -482,10 +791,10 @@ export default function VendasManager() {
                   </div>
 
                   {carrinho.length > 0 && (
-                    <div className="border-t border-gray-800 pt-4">
-                      <div className="flex justify-between mb-4">
-                        <span className="text-[#F5F5FA] font-semibold">Total do Pedido:</span>
-                        <span className="text-[#7B2CFF] font-bold text-xl">
+                    <div className="border-t border-gray-800 pt-3">
+                      <div className="flex justify-between mb-3">
+                        <span className="text-[#F5F5FA] text-sm font-semibold">Total:</span>
+                        <span className="text-[#7B2CFF] font-bold text-lg">
                           R$ {totalCarrinho.toFixed(2)}
                         </span>
                       </div>
@@ -496,17 +805,25 @@ export default function VendasManager() {
                             setShowProdutos(false);
                             setSelectedItem(null);
                             setClienteSelecionado(null);
+                            setMostrarHistorico(false);
                           }}
-                          className="flex-1 py-2 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+                          className="flex-1 py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all text-sm"
                         >
                           Cancelar
                         </button>
                         <button
                           onClick={handleFinalizarPedido}
-                          disabled={!clienteSelecionado && tipoVenda === "mesa" && clientes.length > 0}
-                          className="flex-1 py-2 rounded-xl bg-green-500 text-white hover:bg-green-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                          disabled={!clienteSelecionado || carrinho.length === 0 || adicionandoProduto}
+                          className="flex-1 py-2 rounded-lg bg-green-500 text-white hover:bg-green-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                         >
-                          Finalizar Pedido
+                          {adicionandoProduto ? (
+                            <span className="flex items-center justify-center gap-2">
+                              <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                              Adicionando...
+                            </span>
+                          ) : (
+                            "Adicionar ao Pedido"
+                          )}
                         </button>
                       </div>
                     </div>
@@ -517,6 +834,19 @@ export default function VendasManager() {
           </div>
         </div>
       )}
+
+      {/* Modal para Remover Item */}
+      <ModalRemoverItem
+        isOpen={showRemoverModal}
+        onClose={() => {
+          setShowRemoverModal(false);
+          setItemParaRemover(null);
+        }}
+        onConfirm={handleConfirmarRemocao}
+        item={itemParaRemover}
+        clienteNome={clienteSelecionado?.nome || ""}
+        loading={removendoItem}
+      />
     </div>
   );
 }

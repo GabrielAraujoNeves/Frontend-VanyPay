@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { Plus, Trash2, Users, Armchair, RefreshCw, X, DoorOpen } from "lucide-react";
+import { Plus, Trash2, Users, Armchair, RefreshCw, X, DoorOpen, Eye } from "lucide-react";
 import { mesaService, comandaService } from "../service/api";
 import type { Mesa } from "../service/types";
 import ModalConfirmarDelete from "./ModalConfirmarDelete";
+import MesaDetalhesModal from "./MesaDetalhesModal";
 
 interface ModalMesaProps {
   isOpen: boolean;
@@ -225,6 +226,7 @@ export default function MesasManager() {
   const [showModal, setShowModal] = useState(false);
   const [showAbrirModal, setShowAbrirModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDetalhesModal, setShowDetalhesModal] = useState(false);
   const [mesaSelecionada, setMesaSelecionada] = useState<Mesa | null>(null);
   const [filtro, setFiltro] = useState<"todas" | "ocupadas" | "livres">("todas");
 
@@ -267,6 +269,11 @@ export default function MesasManager() {
     } catch (error) {
       console.error("Erro ao deletar mesa:", error);
     }
+  };
+
+  const handleAbrirDetalhes = (mesa: Mesa) => {
+    setMesaSelecionada(mesa);
+    setShowDetalhesModal(true);
   };
 
   const mesasFiltradas = filtro === "livres" 
@@ -360,7 +367,24 @@ export default function MesasManager() {
               </div>
 
               <div className="flex gap-2 mt-4">
-                {!mesa.isOcupada ? (
+                {mesa.isOcupada ? (
+                  <>
+                    <button
+                      onClick={() => handleAbrirDetalhes(mesa)}
+                      className="flex-1 py-2 rounded-xl bg-[#7B2CFF]/20 text-[#B47DFF] hover:bg-[#7B2CFF]/30 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Eye size={16} />
+                      Ver Detalhes
+                    </button>
+                    <button
+                      onClick={() => handleLiberarMesa(mesa)}
+                      className="flex-1 py-2 rounded-xl bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-all flex items-center justify-center gap-2"
+                    >
+                      <DoorOpen size={16} />
+                      Liberar Mesa
+                    </button>
+                  </>
+                ) : (
                   <button
                     onClick={() => {
                       setMesaSelecionada(mesa);
@@ -370,14 +394,6 @@ export default function MesasManager() {
                   >
                     <DoorOpen size={16} />
                     Abrir Comanda
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handleLiberarMesa(mesa)}
-                    className="flex-1 py-2 rounded-xl bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-all flex items-center justify-center gap-2"
-                  >
-                    <DoorOpen size={16} />
-                    Liberar Mesa
                   </button>
                 )}
                 <button
@@ -429,6 +445,15 @@ export default function MesasManager() {
         onConfirm={handleDeleteMesa}
         title="Deletar Mesa"
         message={`Tem certeza que deseja deletar a Mesa ${mesaSelecionada?.numeroMesa}? Esta ação não pode ser desfeita.`}
+      />
+
+      <MesaDetalhesModal
+        isOpen={showDetalhesModal}
+        onClose={() => {
+          setShowDetalhesModal(false);
+          setMesaSelecionada(null);
+        }}
+        mesa={mesaSelecionada}
       />
     </div>
   );

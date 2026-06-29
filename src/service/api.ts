@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { AbrirComandaCartaoResponse, AbrirComandaResponse, ActiveConfigResponse, AgruparPulseiraRequest, CartaoMessageResponse, CartaoResponse, ClienteResponse, Comanda, CreateCartaoRequest, CreateCategoriaRequest, CreateMesaRequest, CreateProdutoRequest, CreatePulseiraRequest, HappyHourConfig, HappyHourConfigResponse, HappyHourProductsResponse, LoginRequest, Mesa, MesaResponse, ProdutoResponse, PulseiraMessageResponse, PulseiraResponse, RelatorioDiaResponse, TipoComanda, UpdateCategoriaRequest, UpdateProdutoRequest, VincularCartaoRequest } from "./types";
+import type { AbrirComandaCartaoResponse, AbrirComandaResponse, ActiveConfigResponse, AdicionarProdutoRequest, AdicionarProdutoResponse, AgruparPulseiraRequest, CartaoMessageResponse, CartaoResponse, ClienteResponse, ClientesComandaResponse, Comanda, CreateCartaoRequest, CreateCategoriaRequest, CreateMesaRequest, CreateProdutoRequest, CreatePulseiraRequest, DashboardRelatorio, HappyHourConfig, HappyHourConfigResponse, HappyHourProductsResponse, LoginRequest, Mesa, MesaComComanda, MesaDetalhada, MesaResponse, ProdutoResponse, PulseiraMessageResponse, PulseiraResponse, RelatorioDiaResponse, TipoComanda, UpdateCategoriaRequest, UpdateProdutoRequest, VincularCartaoRequest } from "./types";
 
 const api = axios.create({
   baseURL: "http://localhost:8080",
@@ -146,20 +146,33 @@ export const relatorioService = {
     return response.data;
   },
   
-  getRelatorioMes: async (): Promise<any> => {
+  getRelatorioMes: async ():    Promise<any> => {
     const response = await api.get("/comanda/relatorio/mes");
     return response.data;
   }
 };
 
+// Adicione no mesaService
 export const mesaService = {
   listAll: async (): Promise<MesaResponse> => {
-    const response = await api.get("/comanda/mesas/detalhadas");
+    const response = await api.get("/comanda/mesas");
     return response.data;
   },
   
   listOcupadas: async (): Promise<MesaResponse> => {
     const response = await api.get("/comanda/mesas/ocupadas");
+    return response.data;
+  },
+  
+  // Buscar comanda da mesa diretamente
+  buscarComandaDaMesa: async (mesaId: number): Promise<Comanda> => {
+    const response = await api.get(`/comanda/buscar?identificador=${mesaId}&tipo=MESA`);
+    return response.data;
+  },
+  
+  // Buscar mesa com detalhes da comanda
+  getMesaComComanda: async (mesaId: number): Promise<MesaComComanda> => {
+    const response = await api.get(`/comanda/mesas/${mesaId}/comanda`);
     return response.data;
   },
   
@@ -203,6 +216,38 @@ export const comandaService = {
 };
 
 
+
+// Adicione no clienteService
+export const clienteService = {
+  // Listar clientes de uma comanda
+  listByComanda: async (comandaId: number): Promise<ClientesComandaResponse> => {
+    const response = await api.get(`/comanda/${comandaId}/clientes`);
+    return response.data;
+  },
+  
+  // Buscar comanda por ID
+  buscarComanda: async (comandaId: number): Promise<Comanda> => {
+    const response = await api.get(`/comanda/${comandaId}`);
+    return response.data;
+  },
+  
+  // Adicionar produto ao cliente da comanda
+  adicionarProduto: async (comandaId: number, clienteId: number, data: AdicionarProdutoRequest): Promise<AdicionarProdutoResponse> => {
+    const response = await api.post(`/comanda/${comandaId}/cliente/${clienteId}/adicionar-produto`, data);
+    return response.data;
+  },
+  
+  // Remover item do cliente da comanda
+  removerItem: async (comandaId: number, clienteId: number, itemId: number, justificativa: string): Promise<any> => {
+    const response = await api.delete(`/comanda/${comandaId}/cliente/${clienteId}/item/${itemId}/remover`, {
+      data: { justificativa }
+    });
+    return response.data;
+  }
+};
+
+
+// Adicione no pulseiraService
 export const pulseiraService = {
   // Criar pulseira
   create: async (data: CreatePulseiraRequest): Promise<any> => {
@@ -238,11 +283,16 @@ export const pulseiraService = {
   desativar: async (numeroPulseira: string): Promise<PulseiraMessageResponse> => {
     const response = await api.delete(`/comanda/pulseiras/${numeroPulseira}`);
     return response.data;
+  },
+  
+  // Buscar comanda da pulseira
+  buscarComanda: async (numeroPulseira: string): Promise<Comanda> => {
+    const response = await api.get(`/comanda/buscar?identificador=${numeroPulseira}&tipo=PULSEIRA`);
+    return response.data;
   }
 };
 
-
-// Serviços para Cartão
+// Adicione no cartaoService
 export const cartaoService = {
   // Criar cartão
   create: async (data: CreateCartaoRequest): Promise<any> => {
@@ -293,11 +343,9 @@ export const cartaoService = {
   }
 };
 
-// Serviços para Cliente
-export const clienteService = {
-  // Listar clientes de uma comanda
-  listByComanda: async (comandaId: number): Promise<ClienteResponse> => {
-    const response = await api.get(`/comanda/${comandaId}/clientes`);
+export const dashboardService = {
+  getDashboard: async (): Promise<DashboardRelatorio> => {
+    const response = await api.get("/relatorios/dashboard");
     return response.data;
   }
 };

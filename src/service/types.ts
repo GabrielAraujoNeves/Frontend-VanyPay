@@ -154,6 +154,7 @@ export interface Mesa {
   numeroMesa: number;
   capacidade: number;
   isOcupada: boolean;
+  comandaId?: number; // Adicionar campo comandaId
   createdAt: string;
 }
 
@@ -258,5 +259,110 @@ export interface ClienteResponse {
 }
 
 
+// Adicione no final do arquivo types.ts
 
+// Tipos para Cliente com itens
+export interface ClienteComItem {
+  id: number;
+  nome: string;
+  valorTotal: number;
+  pago: boolean;
+  dataPagamento: string | null;
+  itens: ItemConsumo[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ItemConsumo {
+  id: number;
+  produto: {
+    id: number;
+    nome: string;
+    descricao: string;
+    preco: number;
+    quantidade: number;
+    createdAt: string;
+    updatedAt: string;
+  };
+  quantidade: number;
+  precoUnitario: number;
+  precoTotal: number;
+}
+
+export interface ClientesComandaResponse {
+  total: number;
+  clientes: ClienteComItem[];
+}
+
+export interface MesaDetalhada extends Mesa {
+  comanda: {
+    comandaId: number;
+    numeroComanda: string;
+    dataAbertura: string;
+    valorTotal: number;
+    clientes: ClienteComItem[];
+  } | null;
+}
+
+export interface ClienteComItem {
+  id: number;
+  nome: string;
+  valorTotal: number;
+  pago: boolean;
+  dataPagamento: string | null;
+  itens: ItemConsumo[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ItemConsumo {
+  id: number;
+  produto: {
+    id: number;
+    nome: string;
+    descricao: string;
+    preco: number;
+    quantidade: number;
+    createdAt: string;
+    updatedAt: string;
+  };
+  quantidade: number;
+  precoUnitario: number;
+  precoTotal: number;
+}
+
+export interface ClientesComandaResponse {
+  total: number;
+  clientes: ClienteComItem[];
+}
+
+export interface MesaComComanda extends Mesa {
+  comanda: {
+    comandaId: number;
+    numeroComanda: string;
+    dataAbertura: string;
+    valorTotal: number;
+  } | null;
+}
+
+export interface AdicionarProdutoRequest {
+  produtoId: number;
+  quantidade: number;
+}
+
+export interface AdicionarProdutoResponse {
+  produto: string;
+  message: string;
+  quantidade: number;
+  precoTotal: number;
+}
+
+export interface DashboardRelatorio {
+  itensPerdidosHoje: number;
+  dataAtual: string;
+  vendasMes: number;
+  vendasAno: number;
+  comandasAbertas: number;
+  vendasHoje: number;
+}
 
