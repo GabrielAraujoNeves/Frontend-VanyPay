@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { X, User, ShoppingBag, DollarSign, Clock, CheckCircle, XCircle, RefreshCw } from "lucide-react";
 import { clienteService, mesaService } from "../service/api";
-import type { ClienteComItem, Mesa, MesaComComanda } from "../service/types";
+import type { ClienteComItem, Mesa } from "../service/types";
 
 interface MesaDetalhesModalProps {
   isOpen: boolean;
@@ -16,26 +16,9 @@ export default function MesaDetalhesModal({ isOpen, onClose, mesa }: MesaDetalhe
   const [error, setError] = useState<string | null>(null);
   const [comandaId, setComandaId] = useState<number | null>(null);
   const [numeroComanda, setNumeroComanda] = useState<string>("");
+  const [capacidade, setCapacidade] = useState<number>(4);
 
-  // Função para buscar a comanda da mesa
-  const buscarComandaDaMesa = async (mesaId: number) => {
-    try {
-      const response = await mesaService.getMesaComComanda(mesaId);
-      console.log("Resposta comanda da mesa:", response);
-      
-      if (response && response.comanda) {
-        setComandaId(response.comanda.comandaId);
-        setNumeroComanda(response.comanda.numeroComanda);
-        return response.comanda.comandaId;
-      }
-      return null;
-    } catch (error) {
-      console.error("Erro ao buscar comanda da mesa:", error);
-      return null;
-    }
-  };
-
-  // Função para carregar os clientes da comanda
+  // Função para carregar os clientes da mesa usando o endpoint detalhado
   const carregarClientes = async () => {
     if (!mesa || !mesa.isOcupada) {
       setLoading(false);
@@ -46,36 +29,24 @@ export default function MesaDetalhesModal({ isOpen, onClose, mesa }: MesaDetalhe
     setError(null);
     
     try {
-      console.log("Buscando comanda para a mesa:", mesa.id);
+      console.log("Buscando detalhes da mesa:", mesa.id);
       
-      // Primeiro, buscar a comanda da mesa
-      const comandaIdEncontrado = await buscarComandaDaMesa(mesa.id);
+      // Buscar mesas detalhadas
+      const response = await mesaService.listDetalhadas();
+      const mesaDetalhada = response.mesas.find((m: any) => m.id === mesa.id);
       
-      if (!comandaIdEncontrado) {
+      if (mesaDetalhada && mesaDetalhada.comanda) {
+        setComandaId(mesaDetalhada.comanda.comandaId);
+        setNumeroComanda(mesaDetalhada.comanda.numeroComanda);
+        setCapacidade(mesaDetalhada.capacidade || 4);
+        setClientes(mesaDetalhada.comanda.clientes || []);
+        
+        const total = mesaDetalhada.comanda.clientes.reduce((sum: number, c: any) => sum + (c.valorTotal || 0), 0);
+        setTotalMesa(total);
+      } else {
         setError("Esta mesa não possui uma comanda ativa");
         setClientes([]);
         setTotalMesa(0);
-        setLoading(false);
-        return;
-      }
-      
-      console.log("Comanda encontrada ID:", comandaIdEncontrado);
-      
-      // Agora buscar os clientes da comanda
-      const response = await clienteService.listByComanda(comandaIdEncontrado);
-      
-      console.log("Resposta clientes:", response);
-      
-      if (response && response.clientes) {
-        setClientes(response.clientes);
-        
-        // Calcular total da mesa
-        const total = response.clientes.reduce((sum, c) => sum + (c.valorTotal || 0), 0);
-        setTotalMesa(total);
-      } else {
-        setClientes([]);
-        setTotalMesa(0);
-        setError("Nenhum cliente encontrado para esta mesa");
       }
     } catch (err: any) {
       console.error("Erro ao carregar clientes:", err);
@@ -142,7 +113,7 @@ export default function MesaDetalhesModal({ isOpen, onClose, mesa }: MesaDetalhe
               </p>
             )}
             <p className="text-[#B8B8C8] text-sm">
-              Capacidade: {mesa.capacidade} pessoas
+              Capacidade: {capacidade} pessoas
               {clientes.length > 0 && (
                 <> | Total: <span className="text-[#7B2CFF] font-semibold">{formatCurrency(totalMesa)}</span></>
               )}

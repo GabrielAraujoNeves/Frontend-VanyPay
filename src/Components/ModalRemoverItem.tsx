@@ -37,7 +37,6 @@ export default function ModalRemoverItem({
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
       <div className="bg-[#12121A] rounded-2xl w-full max-w-md p-6 border border-red-500/20">
-        {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-red-500/20 rounded-full">
@@ -53,7 +52,6 @@ export default function ModalRemoverItem({
           </button>
         </div>
 
-        {/* Aviso */}
         <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-2">
           <AlertTriangle size={18} className="text-red-400 flex-shrink-0 mt-0.5" />
           <p className="text-red-400 text-sm">
@@ -61,7 +59,6 @@ export default function ModalRemoverItem({
           </p>
         </div>
 
-        {/* Informações do Item */}
         <div className="mb-4 p-3 bg-[#08080D] rounded-xl border border-gray-700">
           <div className="flex items-center gap-2 mb-2">
             <User size={14} className="text-[#7B2CFF]" />
@@ -77,7 +74,6 @@ export default function ModalRemoverItem({
           </div>
         </div>
 
-        {/* Justificativa */}
         <div className="mb-4">
           <label className="block text-[#B8B8C8] text-sm mb-1.5">
             Justificativa para remoção <span className="text-red-400">*</span>
@@ -92,7 +88,6 @@ export default function ModalRemoverItem({
           <p className="text-[#B8B8C8] text-xs mt-1">Descreva o motivo da remoção do item</p>
         </div>
 
-        {/* Botões */}
         <div className="flex gap-3">
           <button
             onClick={onClose}

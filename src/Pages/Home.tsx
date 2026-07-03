@@ -15,6 +15,7 @@ import { useTokenValidation } from "../hooks/useTokenValidation";
 import Dashboard from "../Components/Dashboard";
 import CartoesManager from "../Components/CartoesManager";
 import VendasManager from "../Components/VendasManager";
+import Pagamentos from "../Components/Pagamentos";
 
 export default function Home() {
   const navigate = useNavigate();
@@ -132,12 +133,7 @@ export default function Home() {
           </div>
         );
       case "pagamentos":
-        return (
-          <div>
-            <h1 className="text-3xl font-bold text-[#F5F5FA]">Pagamentos</h1>
-            <p className="text-[#B8B8C8] mt-2">Gerencie os pagamentos do sistema.</p>
-          </div>
-        );
+        return <Pagamentos/>
       case "clientes":
         return (
           <div>

@@ -1,5 +1,5 @@
 import axios from "axios";
-import type { AbrirComandaCartaoResponse, AbrirComandaResponse, ActiveConfigResponse, AdicionarProdutoRequest, AdicionarProdutoResponse, AgruparPulseiraRequest, CartaoMessageResponse, CartaoResponse, ClienteResponse, ClientesComandaResponse, Comanda, CreateCartaoRequest, CreateCategoriaRequest, CreateMesaRequest, CreateProdutoRequest, CreatePulseiraRequest, DashboardRelatorio, HappyHourConfig, HappyHourConfigResponse, HappyHourProductsResponse, LoginRequest, Mesa, MesaComComanda, MesaDetalhada, MesaResponse, ProdutoResponse, PulseiraMessageResponse, PulseiraResponse, RelatorioDiaResponse, TipoComanda, UpdateCategoriaRequest, UpdateProdutoRequest, VincularCartaoRequest } from "./types";
+import type { AbrirComandaCartaoResponse, AbrirComandaResponse, ActiveConfigResponse, AdicionarProdutoRequest, AdicionarProdutoResponse, AgruparPulseiraRequest, CartaoMessageResponse, CartaoResponse, ClienteResponse, ClientesComandaResponse, Comanda, CreateCartaoRequest, CreateCategoriaRequest, CreateMesaRequest, CreateProdutoRequest, CreatePulseiraRequest, DashboardRelatorio, HappyHourConfig, HappyHourConfigResponse, HappyHourProductsResponse, LoginRequest, Mesa, MesaComComanda, MesaDetalhada, MesaDetalhadaResponse, MesaResponse, ProdutoResponse, PulseiraMessageResponse, PulseiraResponse, RelatorioDiaResponse, TipoComanda, UpdateCategoriaRequest, UpdateProdutoRequest, VincularCartaoRequest } from "./types";
 
 const api = axios.create({
   baseURL: "http://localhost:8080",
@@ -154,13 +154,19 @@ export const relatorioService = {
 
 // Adicione no mesaService
 export const mesaService = {
-  listAll: async (): Promise<MesaResponse> => {
+   listAll: async (): Promise<MesaResponse> => {
     const response = await api.get("/comanda/mesas");
     return response.data;
   },
   
   listOcupadas: async (): Promise<MesaResponse> => {
     const response = await api.get("/comanda/mesas/ocupadas");
+    return response.data;
+  },
+  
+  // Método para buscar mesas detalhadas
+  listDetalhadas: async (): Promise<MesaDetalhadaResponse> => {
+    const response = await api.get("/comanda/mesas/detalhadas");
     return response.data;
   },
   
@@ -201,6 +207,11 @@ export const comandaService = {
   
   buscar: async (identificador: string, tipo: TipoComanda): Promise<Comanda> => {
     const response = await api.get(`/comanda/buscar?identificador=${identificador}&tipo=${tipo}`);
+    return response.data;
+  },
+
+  adicionarCliente: async (comandaId: number, nome: string): Promise<any> => {
+    const response = await api.post(`/comanda/${comandaId}/adicionar-cliente`, { nome });
     return response.data;
   },
   
@@ -346,6 +357,36 @@ export const cartaoService = {
 export const dashboardService = {
   getDashboard: async (): Promise<DashboardRelatorio> => {
     const response = await api.get("/relatorios/dashboard");
+    return response.data;
+  }
+};
+
+// Serviços para Pagamento
+export const pagamentoService = {
+  // Realizar pagamento individual de um cliente
+  realizarPagamento: async (comandaId: number, clienteId: number, valorPago: number, formaPagamento: string): Promise<any> => {
+    const response = await api.post(`/comanda/${comandaId}/cliente/${clienteId}/pagar`, {
+      valorPago,
+      formaPagamento
+    });
+    return response.data;
+  },
+  
+  // Realizar pagamento conjunto (vários clientes)
+  realizarPagamentoConjunto: async (comandaId: number, clienteIds: number[], valorPago: number, formaPagamento: string): Promise<any> => {
+    const response = await api.post(`/comanda/${comandaId}/pagar-conjunto?formaPagamento=${formaPagamento}&valorPago=${valorPago}`, clienteIds);
+    return response.data;
+  },
+  
+  // Buscar detalhes dos clientes da comanda
+  buscarClientesDetalhes: async (comandaId: number): Promise<any> => {
+    const response = await api.get(`/comanda/${comandaId}/clientes/detalhes`);
+    return response.data;
+  },
+  
+  // Remover cliente da comanda
+  removerCliente: async (comandaId: number, clienteId: number): Promise<any> => {
+    const response = await api.delete(`/comanda/${comandaId}/cliente/${clienteId}/remover`);
     return response.data;
   }
 };

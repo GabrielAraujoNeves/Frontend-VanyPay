@@ -36,6 +36,8 @@ export interface Produto {
   createdAt: string;
   updatedAt: string;
   categoria: Categoria;
+  isInHappyHour?: boolean;
+  descontoPercent?: number;
 }
 
 export interface ProdutoResponse {
@@ -154,7 +156,7 @@ export interface Mesa {
   numeroMesa: number;
   capacidade: number;
   isOcupada: boolean;
-  comandaId?: number; // Adicionar campo comandaId
+  comandaId?: number;
   createdAt: string;
 }
 
@@ -243,7 +245,6 @@ export interface AbrirComandaCartaoResponse {
   dataAbertura: string;
 }
 
-
 // Tipos para Cliente
 export interface Cliente {
   id: number;
@@ -257,9 +258,6 @@ export interface ClienteResponse {
   total: number;
   clientes: Cliente[];
 }
-
-
-// Adicione no final do arquivo types.ts
 
 // Tipos para Cliente com itens
 export interface ClienteComItem {
@@ -304,38 +302,6 @@ export interface MesaDetalhada extends Mesa {
   } | null;
 }
 
-export interface ClienteComItem {
-  id: number;
-  nome: string;
-  valorTotal: number;
-  pago: boolean;
-  dataPagamento: string | null;
-  itens: ItemConsumo[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ItemConsumo {
-  id: number;
-  produto: {
-    id: number;
-    nome: string;
-    descricao: string;
-    preco: number;
-    quantidade: number;
-    createdAt: string;
-    updatedAt: string;
-  };
-  quantidade: number;
-  precoUnitario: number;
-  precoTotal: number;
-}
-
-export interface ClientesComandaResponse {
-  total: number;
-  clientes: ClienteComItem[];
-}
-
 export interface MesaComComanda extends Mesa {
   comanda: {
     comandaId: number;
@@ -366,3 +332,53 @@ export interface DashboardRelatorio {
   vendasHoje: number;
 }
 
+export interface MesaDetalhadaResponse {
+  total: number;
+  mesas: MesaDetalhada[];
+}
+
+// ============================================
+// TIPOS PARA PAGAMENTOS - NOVOS
+// ============================================
+
+// Item consumido (para pagamento)
+export interface ItemConsumoPagamento {
+  itemId: number;
+  produtoNome: string;
+  quantidade: number;
+  precoUnitario: number;
+  precoTotal: number;
+}
+
+// Cliente detalhado (para pagamento)
+export interface ClienteDetalhado {
+  id: number;
+  nome: string;
+  valorTotal: number;
+  pago: boolean;
+  itens: ItemConsumoPagamento[];
+  dataPagamento?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+// Resposta de clientes detalhados
+export interface ClientesDetalhesResponse {
+  clientes: ClienteDetalhado[];
+}
+
+// Resposta do pagamento conjunto
+export interface PagamentoConjuntoResponse {
+  message: string;
+  clientesPagos: number;
+  totalPago: number;
+  formaPagamento: string;
+}
+
+// Resposta do pagamento individual
+export interface PagamentoIndividualResponse {
+  message: string;
+  clienteId: number;
+  valorPago: number;
+  formaPagamento: string;
+}

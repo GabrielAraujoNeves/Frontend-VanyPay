@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
-import { 
-  ShoppingCart, Table, Sparkles, Wallet, Search, 
+import {
+  ShoppingCart, Table, Sparkles, Wallet, Search,
   ChevronRight, Plus, Minus, Trash2, X, RefreshCw,
   Users, CreditCard, Tag, DollarSign, User, CheckCircle,
   Package, History
 } from "lucide-react";
-import { mesaService, pulseiraService, cartaoService, produtoService, clienteService } from "../service/api";
+import { mesaService, pulseiraService, cartaoService, produtoService, clienteService, comandaService } from "../service/api";
 import type { Mesa, Pulseira, Cartao, Produto, ClienteComItem, Comanda } from "../service/types";
 import ModalRemoverItem from "./ModalRemoverItem";
+import ModalAdicionarCliente from "./ModalAdicionarCliente";
 
 type TipoVenda = "mesa" | "pulseira" | "cartao";
 
@@ -49,6 +50,10 @@ export default function VendasManager() {
   const [showRemoverModal, setShowRemoverModal] = useState(false);
   const [itemParaRemover, setItemParaRemover] = useState<any>(null);
   const [removendoItem, setRemovendoItem] = useState(false);
+  const [showAdicionarClienteModal, setShowAdicionarClienteModal] = useState(false);
+  const [adicionandoCliente, setAdicionandoCliente] = useState(false);
+  const [capacidadeMesa, setCapacidadeMesa] = useState(4);
+  const [comandaInfo, setComandaInfo] = useState<any>(null);
 
   const loadData = async () => {
     setLoading(true);
@@ -64,7 +69,7 @@ export default function VendasManager() {
         const response = await cartaoService.listAll();
         setCartoes(response.cartoes || []);
       }
-      
+
       const produtosResponse = await produtoService.listAll();
       setProdutos(produtosResponse.produtos || []);
     } catch (error) {
@@ -83,15 +88,14 @@ export default function VendasManager() {
     setErrorMensagem(null);
     try {
       console.log(`🔍 Buscando clientes para comanda ID: ${comandaId}`);
-      
+
       const response = await clienteService.listByComanda(comandaId);
-      console.log("✅ Clientes da comanda:", response);
-      
+      console.log(" Clientes da comanda:", response);
+
       if (response && response.clientes) {
         setClientes(response.clientes);
         setComandaIdAtual(comandaId);
-        
-        // Se tiver cliente selecionado, atualizar seus dados
+
         if (clienteSelecionado) {
           const clienteAtualizado = response.clientes.find(c => c.id === clienteSelecionado.id);
           if (clienteAtualizado) {
@@ -115,21 +119,33 @@ export default function VendasManager() {
     setLoadingClientes(true);
     setErrorMensagem(null);
     try {
-      console.log(`🔍 Buscando comanda para mesa ID: ${mesaId}`);
-      
-      const comanda = await mesaService.buscarComandaDaMesa(mesaId);
-      console.log("✅ Comanda encontrada:", comanda);
-      
-      if (comanda && comanda.id) {
-        setComandaIdAtual(comanda.id);
-        await buscarClientesDaComanda(comanda.id);
+      console.log(` Buscando comanda para mesa ID: ${mesaId}`);
+
+      const response = await mesaService.listDetalhadas();
+      console.log(" Mesas detalhadas:", response);
+
+      const mesaDetalhada = response.mesas.find((m: any) => m.id === mesaId);
+
+      if (mesaDetalhada && mesaDetalhada.comanda) {
+        setComandaIdAtual(mesaDetalhada.comanda.comandaId);
+        setClientes(mesaDetalhada.comanda.clientes || []);
+        setCapacidadeMesa(mesaDetalhada.capacidade || 4);
+        setComandaInfo({
+          comandaId: mesaDetalhada.comanda.comandaId,
+          numeroComanda: mesaDetalhada.comanda.numeroComanda,
+          valorTotal: mesaDetalhada.comanda.valorTotal || 0
+        });
+        console.log("Comanda encontrada:", mesaDetalhada.comanda);
       } else {
         setClientes([]);
+        setComandaInfo(null);
         setErrorMensagem("Esta mesa não possui uma comanda ativa");
+        console.log(" Nenhuma comanda encontrada para esta mesa");
       }
     } catch (error: any) {
-      console.error("❌ Erro ao buscar comanda da mesa:", error);
+      console.error("Erro ao buscar comanda da mesa:", error);
       setClientes([]);
+      setComandaInfo(null);
       setErrorMensagem(error.response?.data?.message || "Erro ao carregar dados da mesa");
     } finally {
       setLoadingClientes(false);
@@ -140,11 +156,11 @@ export default function VendasManager() {
     setLoadingClientes(true);
     setErrorMensagem(null);
     try {
-      console.log(`🔍 Buscando comanda para pulseira: ${numeroPulseira}`);
-      
+      console.log(`Buscando comanda para pulseira: ${numeroPulseira}`);
+
       const response = await pulseiraService.buscarComanda(numeroPulseira);
-      console.log("✅ Comanda da pulseira:", response);
-      
+      console.log("Comanda da pulseira:", response);
+
       if (response && response.id) {
         setComandaIdAtual(response.id);
         await buscarClientesDaComanda(response.id);
@@ -153,7 +169,7 @@ export default function VendasManager() {
         setErrorMensagem("Nenhuma comanda encontrada para esta pulseira");
       }
     } catch (error) {
-      console.error("❌ Erro ao buscar comanda da pulseira:", error);
+      console.error("Erro ao buscar comanda da pulseira:", error);
       setClientes([]);
       setErrorMensagem("Erro ao carregar dados da pulseira");
     } finally {
@@ -166,10 +182,10 @@ export default function VendasManager() {
     setErrorMensagem(null);
     try {
       console.log(`🔍 Buscando comanda para cartão: ${numeroCartao}`);
-      
+
       const response = await cartaoService.buscarComanda(numeroCartao);
-      console.log("✅ Comanda do cartão:", response);
-      
+      console.log("Comanda do cartão:", response);
+
       if (response && response.id) {
         setComandaIdAtual(response.id);
         await buscarClientesDaComanda(response.id);
@@ -178,7 +194,7 @@ export default function VendasManager() {
         setErrorMensagem("Nenhuma comanda encontrada para este cartão");
       }
     } catch (error) {
-      console.error("❌ Erro ao buscar comanda do cartão:", error);
+      console.error("Erro ao buscar comanda do cartão:", error);
       setClientes([]);
       setErrorMensagem("Erro ao carregar dados do cartão");
     } finally {
@@ -186,9 +202,35 @@ export default function VendasManager() {
     }
   };
 
+  const handleAdicionarCliente = async (nome: string) => {
+    if (!comandaIdAtual) return;
+
+    setAdicionandoCliente(true);
+    try {
+      const response = await comandaService.adicionarCliente(comandaIdAtual, nome);
+      console.log("Cliente adicionado:", response);
+
+      setMensagemSucesso(`Cliente "${nome}" adicionado com sucesso!`);
+
+      await buscarClientesDaComanda(comandaIdAtual);
+
+      setShowAdicionarClienteModal(false);
+
+      setTimeout(() => {
+        setMensagemSucesso(null);
+      }, 3000);
+
+    } catch (error: any) {
+      console.error(" Erro ao adicionar cliente:", error);
+      setErrorMensagem(error.response?.data?.message || "Erro ao adicionar cliente");
+    } finally {
+      setAdicionandoCliente(false);
+    }
+  };
+
   const handleSelectItem = async (item: any) => {
     console.log(`🖱️ Selecionando item:`, item);
-    
+
     setSelectedItem(item);
     setShowProdutos(true);
     setClienteSelecionado(null);
@@ -200,13 +242,15 @@ export default function VendasManager() {
     setMostrarHistorico(false);
     setShowRemoverModal(false);
     setItemParaRemover(null);
-    
+    setComandaInfo(null);
+    setCapacidadeMesa(4);
+
     if (tipoVenda === "mesa") {
       if (item.isOcupada) {
         await buscarComandaDaMesa(item.id);
       } else {
         setErrorMensagem("Esta mesa está livre");
-        console.log("ℹ️ Mesa está livre");
+        console.log("Mesa está livre");
       }
     } else if (tipoVenda === "pulseira") {
       if (item.isAtivo) {
@@ -235,7 +279,7 @@ export default function VendasManager() {
 
   const handleAddProduto = (produto: Produto) => {
     console.log(`📦 Adicionando produto: ${produto.nome} (R$ ${produto.preco.toFixed(2)})`);
-    
+
     const existingItem = carrinho.find(item => item.produtoId === produto.id);
     if (existingItem) {
       setCarrinho(carrinho.map(item =>
@@ -256,7 +300,7 @@ export default function VendasManager() {
 
   const handleUpdateQuantidade = (produtoId: number, quantidade: number) => {
     console.log(`🔄 Atualizando quantidade do produto ${produtoId} para ${quantidade}`);
-    
+
     if (quantidade <= 0) {
       setCarrinho(carrinho.filter(item => item.produtoId !== produtoId));
     } else {
@@ -269,7 +313,7 @@ export default function VendasManager() {
   };
 
   const handleRemoveProduto = (produtoId: number) => {
-    console.log(`🗑️ Removendo produto ${produtoId} do carrinho`);
+    console.log(`Removendo produto ${produtoId} do carrinho`);
     setCarrinho(carrinho.filter(item => item.produtoId !== produtoId));
   };
 
@@ -280,34 +324,33 @@ export default function VendasManager() {
 
   const handleConfirmarRemocao = async (justificativa: string) => {
     if (!comandaIdAtual || !clienteSelecionado || !itemParaRemover) return;
-    
+
     setRemovendoItem(true);
     try {
       console.log(`🗑️ Removendo item ${itemParaRemover.id} do cliente ${clienteSelecionado.id}`);
-      
+
       const response = await clienteService.removerItem(
         comandaIdAtual,
         clienteSelecionado.id,
         itemParaRemover.id,
         justificativa
       );
-      
-      console.log("✅ Item removido:", response);
-      
+
+      console.log("Item removido:", response);
+
       setMensagemSucesso(`Item "${itemParaRemover.nome}" removido com sucesso!`);
-      
-      // Recarregar os clientes para atualizar a lista
+
       await buscarClientesDaComanda(comandaIdAtual);
-      
+
       setShowRemoverModal(false);
       setItemParaRemover(null);
-      
+
       setTimeout(() => {
         setMensagemSucesso(null);
       }, 5000);
-      
+
     } catch (error: any) {
-      console.error("❌ Erro ao remover item:", error);
+      console.error("Erro ao remover item:", error);
       setErrorMensagem(error.response?.data?.message || "Erro ao remover item");
     } finally {
       setRemovendoItem(false);
@@ -320,7 +363,7 @@ export default function VendasManager() {
     console.log("  - Cliente:", clienteSelecionado);
     console.log("  - Itens:", carrinho);
     console.log("  - Total:", totalCarrinho);
-    
+
     if (!comandaIdAtual || !clienteSelecionado) {
       console.error("❌ Erro: Cliente ou comanda não selecionados");
       alert("Selecione um cliente para finalizar o pedido");
@@ -339,10 +382,10 @@ export default function VendasManager() {
 
     try {
       console.log(`🔄 Adicionando ${carrinho.length} itens à comanda...`);
-      
+
       for (const item of carrinho) {
         console.log(`  - Adicionando: ${item.nome} (${item.quantidade}x R$ ${item.preco.toFixed(2)})`);
-        
+
         const response = await clienteService.adicionarProduto(
           comandaIdAtual,
           clienteSelecionado.id,
@@ -356,16 +399,16 @@ export default function VendasManager() {
 
       console.log("✅ Pedido finalizado com sucesso!");
       setMensagemSucesso(`Pedido finalizado para ${clienteSelecionado.nome}! Total: R$ ${totalCarrinho.toFixed(2)}`);
-      
+
       console.log("🔄 Recarregando clientes da comanda...");
       await buscarClientesDaComanda(comandaIdAtual);
-      
+
       setCarrinho([]);
-      
+
       setTimeout(() => {
         setMensagemSucesso(null);
       }, 5000);
-      
+
     } catch (error: any) {
       console.error("❌ Erro ao adicionar produtos:", error);
       setErrorMensagem(error.response?.data?.message || "Erro ao adicionar produtos à comanda");
@@ -383,54 +426,70 @@ export default function VendasManager() {
 
   const renderItemList = () => {
     if (tipoVenda === "mesa") {
-      return mesas.map(mesa => (
-        <button
-          key={mesa.id}
-          onClick={() => handleSelectItem(mesa)}
-          className={`w-full p-4 rounded-xl border transition-all text-left ${
-            selectedItem?.id === mesa.id
-              ? "border-[#7B2CFF] bg-[#7B2CFF]/10"
-              : "border-gray-700 bg-[#08080D] hover:border-[#7B2CFF]/50"
-          }`}
-        >
-          <div className="flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-full ${mesa.isOcupada ? "bg-red-500/20" : "bg-green-500/20"}`}>
-                <Table size={20} className={mesa.isOcupada ? "text-red-400" : "text-green-400"} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-[#F5F5FA]">Mesa {mesa.numeroMesa}</h3>
-                <p className="text-[#B8B8C8] text-sm">Capacidade: {mesa.capacidade} pessoas</p>
-                {mesa.isOcupada && (
-                  <p className="text-[#B8B8C8] text-xs text-green-400">✅ Ocupada</p>
-                )}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`px-2 py-1 rounded-full text-xs ${
-                mesa.isOcupada 
-                  ? "bg-red-500/20 text-red-400" 
-                  : "bg-green-500/20 text-green-400"
-              }`}>
-                {mesa.isOcupada ? "OCUPADA" : "LIVRE"}
-              </span>
-              <ChevronRight size={18} className="text-[#B8B8C8]" />
-            </div>
+      if (mesas.length === 0) {
+        return (
+          <div className="text-center py-12 bg-[#12121A] rounded-2xl border border-gray-700">
+            <Table size={48} className="mx-auto text-[#B8B8C8] mb-4" />
+            <p className="text-[#F5F5FA] font-semibold">Nenhuma mesa cadastrada</p>
+            <p className="text-[#B8B8C8] text-sm mt-2">Cadastre mesas para começar a vender</p>
           </div>
-        </button>
-      ));
+        );
+      }
+
+      return (
+        <div className="flex flex-wrap gap-3">
+          {mesas.map(mesa => (
+            <button
+              key={mesa.id}
+              onClick={() => handleSelectItem(mesa)}
+              className={`
+              relative w-[100px] h-[100px] rounded-xl border-2 transition-all text-center flex flex-col items-center justify-center p-2
+              ${selectedItem?.id === mesa.id
+                  ? "border-[#7B2CFF] bg-[#7B2CFF]/10 shadow-[0_0_20px_rgba(123,44,255,0.3)]"
+                  : "border-gray-700 bg-[#08080D] hover:border-[#7B2CFF]/50 hover:bg-[#12121A]"
+                }
+              ${mesa.isOcupada ? 'border-red-500/30' : 'border-green-500/30'}
+              hover:scale-105 transition-all duration-200
+            `}
+            >
+              {/* Badge de status */}
+              <div className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full ${mesa.isOcupada ? 'bg-red-500 animate-pulse' : 'bg-green-500'
+                }`} />
+
+              {/* Número da Mesa */}
+              <div className="text-4xl font-bold text-[#F5F5FA]">
+                {mesa.numeroMesa}
+              </div>
+
+              {/* Capacidade */}
+              <div className="flex items-center gap-1 text-[#B8B8C8] text-xs mt-1">
+                <Users size={12} />
+                <span>{mesa.capacidade}</span>
+              </div>
+
+              {/* Status */}
+              <div className={`mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${mesa.isOcupada
+                  ? 'bg-red-500/20 text-red-400'
+                  : 'bg-green-500/20 text-green-400'
+                }`}>
+                {mesa.isOcupada ? 'OCUPADA' : 'LIVRE'}
+              </div>
+            </button>
+          ))}
+        </div>
+      );
     }
+
 
     if (tipoVenda === "pulseira") {
       return pulseiras.map(pulseira => (
         <button
           key={pulseira.id}
           onClick={() => handleSelectItem(pulseira)}
-          className={`w-full p-4 rounded-xl border transition-all text-left ${
-            selectedItem?.id === pulseira.id
-              ? "border-[#7B2CFF] bg-[#7B2CFF]/10"
-              : "border-gray-700 bg-[#08080D] hover:border-[#7B2CFF]/50"
-          }`}
+          className={`w-full p-4 rounded-xl border transition-all text-left ${selectedItem?.id === pulseira.id
+            ? "border-[#7B2CFF] bg-[#7B2CFF]/10"
+            : "border-gray-700 bg-[#08080D] hover:border-[#7B2CFF]/50"
+            }`}
         >
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
@@ -443,11 +502,10 @@ export default function VendasManager() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className={`px-2 py-1 rounded-full text-xs ${
-                pulseira.isAtivo 
-                  ? "bg-green-500/20 text-green-400" 
-                  : "bg-gray-500/20 text-gray-400"
-              }`}>
+              <span className={`px-2 py-1 rounded-full text-xs ${pulseira.isAtivo
+                ? "bg-green-500/20 text-green-400"
+                : "bg-gray-500/20 text-gray-400"
+                }`}>
                 {pulseira.isAtivo ? "ATIVA" : "INATIVA"}
               </span>
               <ChevronRight size={18} className="text-[#B8B8C8]" />
@@ -461,11 +519,10 @@ export default function VendasManager() {
       <button
         key={cartao.id}
         onClick={() => handleSelectItem(cartao)}
-        className={`w-full p-4 rounded-xl border transition-all text-left ${
-          selectedItem?.id === cartao.id
-            ? "border-[#7B2CFF] bg-[#7B2CFF]/10"
-            : "border-gray-700 bg-[#08080D] hover:border-[#7B2CFF]/50"
-        }`}
+        className={`w-full p-4 rounded-xl border transition-all text-left ${selectedItem?.id === cartao.id
+          ? "border-[#7B2CFF] bg-[#7B2CFF]/10"
+          : "border-gray-700 bg-[#08080D] hover:border-[#7B2CFF]/50"
+          }`}
       >
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -478,11 +535,10 @@ export default function VendasManager() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <span className={`px-2 py-1 rounded-full text-xs ${
-              cartao.isAtivo 
-                ? "bg-green-500/20 text-green-400" 
-                : "bg-gray-500/20 text-gray-400"
-            }`}>
+            <span className={`px-2 py-1 rounded-full text-xs ${cartao.isAtivo
+              ? "bg-green-500/20 text-green-400"
+              : "bg-gray-500/20 text-gray-400"
+              }`}>
               {cartao.isAtivo ? "ATIVO" : "INATIVO"}
             </span>
             <ChevronRight size={18} className="text-[#B8B8C8]" />
@@ -503,7 +559,7 @@ export default function VendasManager() {
           </h1>
           <p className="text-[#B8B8C8] mt-1">Selecione o tipo de venda e faça o pedido</p>
         </div>
-        
+
         <button
           onClick={loadData}
           className="flex items-center gap-2 px-4 py-2 bg-[#12121A] border border-gray-700 rounded-xl text-[#B8B8C8] hover:text-white hover:border-[#7B2CFF] transition-all"
@@ -517,33 +573,30 @@ export default function VendasManager() {
       <div className="flex gap-4">
         <button
           onClick={() => setTipoVenda("mesa")}
-          className={`flex-1 py-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
-            tipoVenda === "mesa"
-              ? "bg-[#7B2CFF] text-white"
-              : "bg-[#12121A] text-[#B8B8C8] hover:bg-[#7B2CFF]/20"
-          }`}
+          className={`flex-1 py-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${tipoVenda === "mesa"
+            ? "bg-[#7B2CFF] text-white"
+            : "bg-[#12121A] text-[#B8B8C8] hover:bg-[#7B2CFF]/20"
+            }`}
         >
           <Table size={20} />
           Mesa
         </button>
         <button
           onClick={() => setTipoVenda("pulseira")}
-          className={`flex-1 py-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
-            tipoVenda === "pulseira"
-              ? "bg-[#7B2CFF] text-white"
-              : "bg-[#12121A] text-[#B8B8C8] hover:bg-[#7B2CFF]/20"
-          }`}
+          className={`flex-1 py-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${tipoVenda === "pulseira"
+            ? "bg-[#7B2CFF] text-white"
+            : "bg-[#12121A] text-[#B8B8C8] hover:bg-[#7B2CFF]/20"
+            }`}
         >
           <Sparkles size={20} />
           Pulseira
         </button>
         <button
           onClick={() => setTipoVenda("cartao")}
-          className={`flex-1 py-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
-            tipoVenda === "cartao"
-              ? "bg-[#7B2CFF] text-white"
-              : "bg-[#12121A] text-[#B8B8C8] hover:bg-[#7B2CFF]/20"
-          }`}
+          className={`flex-1 py-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${tipoVenda === "cartao"
+            ? "bg-[#7B2CFF] text-white"
+            : "bg-[#12121A] text-[#B8B8C8] hover:bg-[#7B2CFF]/20"
+            }`}
         >
           <Wallet size={20} />
           Cartão
@@ -566,8 +619,9 @@ export default function VendasManager() {
               {tipoVenda === "pulseira" && "Pulseiras"}
               {tipoVenda === "cartao" && "Cartões"}
             </h2>
-            
-            <div className="space-y-3 max-h-[500px] overflow-y-auto">
+
+            {/* Sem scroll, apenas o conteúdo fluindo */}
+            <div>
               {renderItemList()}
             </div>
           </div>
@@ -605,46 +659,73 @@ export default function VendasManager() {
                 ) : (
                   <>
                     {/* Clientes da Comanda */}
-                    {clientes.length > 0 && (
+                    {(clientes.length > 0 || comandaIdAtual) && (
                       <div className="mb-4">
-                        <h3 className="text-sm font-semibold text-[#F5F5FA] mb-2 flex items-center gap-2">
-                          <Users size={16} className="text-[#7B2CFF]" />
-                          Clientes da Comanda
-                        </h3>
-                        <div className="flex flex-wrap gap-2">
-                          {clientes.map((cliente) => (
+                        <div className="flex justify-between items-center mb-2">
+                          <h3 className="text-sm font-semibold text-[#F5F5FA] flex items-center gap-2">
+                            <Users size={16} className="text-[#7B2CFF]" />
+                            {clientes.length > 0 ? "Clientes da Comanda" : "Comanda"}
+                            {clientes.length > 0 && (
+                              <span className="text-[#B8B8C8] text-xs ml-1">
+                                ({clientes.length}/{capacidadeMesa})
+                              </span>
+                            )}
+                          </h3>
+                          {/* Botão Adicionar Cliente - visível quando tem comanda ativa */}
+                          {comandaIdAtual && (
                             <button
-                              key={cliente.id}
-                              onClick={() => handleSelectCliente(cliente)}
-                              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 text-sm ${
-                                clienteSelecionado?.id === cliente.id
+                              onClick={() => {
+                                console.log("📝 Abrindo modal para adicionar cliente");
+                                setShowAdicionarClienteModal(true);
+                              }}
+                              className="flex items-center gap-1 text-xs bg-[#7B2CFF] text-white px-3 py-1.5 rounded-lg hover:bg-[#9A4DFF] transition-all"
+                            >
+                              <Plus size={14} />
+                              Adicionar Cliente
+                            </button>
+                          )}
+                        </div>
+
+                        {clientes.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {clientes.map((cliente) => (
+                              <button
+                                key={cliente.id}
+                                onClick={() => handleSelectCliente(cliente)}
+                                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 text-sm ${clienteSelecionado?.id === cliente.id
                                   ? "bg-[#7B2CFF] text-white"
                                   : "bg-[#08080D] border border-gray-700 text-[#F5F5FA] hover:border-[#7B2CFF]"
-                              }`}
-                            >
-                              <User size={12} />
-                              {cliente.nome}
-                              {cliente.valorTotal > 0 && (
-                                <span className={`text-xs ${
-                                  clienteSelecionado?.id === cliente.id
+                                  }`}
+                              >
+                                <User size={12} />
+                                {cliente.nome}
+                                {cliente.valorTotal > 0 && (
+                                  <span className={`text-xs ${clienteSelecionado?.id === cliente.id
                                     ? "text-white/80"
                                     : "text-[#7B2CFF]"
-                                }`}>
-                                  R$ {cliente.valorTotal.toFixed(2)}
-                                </span>
-                              )}
-                              {cliente.itens && cliente.itens.length > 0 && (
-                                <span className={`text-xs ${
-                                  clienteSelecionado?.id === cliente.id
+                                    }`}>
+                                    R$ {cliente.valorTotal.toFixed(2)}
+                                  </span>
+                                )}
+                                {cliente.itens && cliente.itens.length > 0 && (
+                                  <span className={`text-xs ${clienteSelecionado?.id === cliente.id
                                     ? "text-white/60"
                                     : "text-[#B8B8C8]"
-                                }`}>
-                                  ({cliente.itens.length})
-                                </span>
-                              )}
-                            </button>
-                          ))}
-                        </div>
+                                    }`}>
+                                    ({cliente.itens.length})
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          comandaIdAtual && (
+                            <div className="text-center py-4 bg-[#08080D] rounded-lg border border-gray-700">
+                              <p className="text-[#B8B8C8] text-sm">Nenhum cliente na comanda</p>
+                              <p className="text-[#B8B8C8] text-xs mt-1">Clique em "Adicionar Cliente" para começar</p>
+                            </div>
+                          )
+                        )}
                       </div>
                     )}
 
@@ -675,11 +756,11 @@ export default function VendasManager() {
                             const quantidade = item.quantidade || 0;
                             const precoUnitario = item.precoUnitario || item.preco || 0;
                             const precoTotal = item.precoTotal || (quantidade * precoUnitario);
-                            
+
                             return (
                               <div key={index} className="flex justify-between items-center text-sm group">
                                 <span className="text-[#B8B8C8]">
-                                  {produtoNome} 
+                                  {produtoNome}
                                   <span className="text-[#F5F5FA] ml-1">x{quantidade}</span>
                                 </span>
                                 <div className="flex items-center gap-2">
@@ -715,34 +796,35 @@ export default function VendasManager() {
                   </>
                 )}
 
-                {/* Busca de Produtos para Adicionar */}
-                <div className="relative mb-3">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#B8B8C8]" size={16} />
-                  <input
-                    type="text"
-                    placeholder={clienteSelecionado ? `Buscar produtos para ${clienteSelecionado.nome}...` : "Buscar produtos para adicionar..."}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 bg-[#08080D] border border-gray-700 rounded-lg text-[#F5F5FA] text-sm outline-none focus:border-[#7B2CFF]"
-                  />
-                </div>
-
                 {/* Lista de Produtos para Adicionar */}
                 <div className="grid grid-cols-2 gap-2 max-h-[120px] overflow-y-auto mb-3">
-                  {produtosFiltrados
-                    .slice(0, 6)
-                    .map((produto) => (
+                  {produtosFiltrados.length === 0 ? (
+                    <div className="col-span-2 text-center py-4 text-[#B8B8C8] text-sm">
+                      {searchTerm ? 'Nenhum produto encontrado' : 'Nenhum produto disponível'}
+                    </div>
+                  ) : (
+                    produtosFiltrados.slice(0, 8).map((produto) => (
                       <button
                         key={produto.id}
                         onClick={() => handleAddProduto(produto)}
-                        className="p-2 bg-[#08080D] rounded-lg border border-gray-700 hover:border-[#7B2CFF] transition-all text-left"
+                        className="p-2 bg-[#08080D] rounded-lg border border-gray-700 hover:border-[#7B2CFF] transition-all text-left group"
                       >
-                        <p className="font-semibold text-[#F5F5FA] text-xs">{produto.nome}</p>
-                        <p className="text-[#7B2CFF] text-xs font-bold">
-                          R$ {produto.preco.toFixed(2)}
-                        </p>
+                        <div className="flex justify-between items-start">
+                          <p className="font-semibold text-[#F5F5FA] text-xs flex-1">{produto.nome}</p>
+                          <span className="text-[#7B2CFF] text-xs font-bold ml-1">
+                            R$ {produto.preco.toFixed(2)}
+                          </span>
+                        </div>
+                        <p className="text-[#B8B8C8] text-[10px] truncate">{produto.categoria?.nome || 'Sem categoria'}</p>
+                        <div className="flex justify-between items-center mt-1">
+                          <span className="text-[#B8B8C8] text-[10px]">Estoque: {produto.quantidade}</span>
+                          {produto.isInHappyHour && (
+                            <span className="text-green-400 text-[10px]">🎉 Promoção</span>
+                          )}
+                        </div>
                       </button>
-                    ))}
+                    ))
+                  )}
                 </div>
 
                 {/* Carrinho (Novos Itens a serem adicionados) */}
@@ -751,7 +833,7 @@ export default function VendasManager() {
                     <Tag size={14} className="text-[#7B2CFF]" />
                     {clienteSelecionado ? `Adicionando para ${clienteSelecionado.nome}` : "Novos Itens"}
                   </h3>
-                  
+
                   <div className="space-y-1.5 max-h-[150px] overflow-y-auto mb-3">
                     {carrinho.length === 0 ? (
                       <p className="text-center text-[#B8B8C8] text-sm py-2">
@@ -846,6 +928,19 @@ export default function VendasManager() {
         item={itemParaRemover}
         clienteNome={clienteSelecionado?.nome || ""}
         loading={removendoItem}
+      />
+
+      {/* Modal para Adicionar Cliente */}
+      <ModalAdicionarCliente
+        isOpen={showAdicionarClienteModal}
+        onClose={() => {
+          setShowAdicionarClienteModal(false);
+        }}
+        onConfirm={handleAdicionarCliente}
+        loading={adicionandoCliente}
+        comandaId={comandaIdAtual || 0}
+        capacidade={capacidadeMesa}
+        clientesAtuais={clientes.length}
       />
     </div>
   );

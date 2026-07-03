@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { Plus, Trash2, Users, Armchair, RefreshCw, X, DoorOpen, Eye } from "lucide-react";
-import { mesaService, comandaService } from "../service/api";
+import { mesaService } from "../service/api";
 import type { Mesa } from "../service/types";
 import ModalConfirmarDelete from "./ModalConfirmarDelete";
 import MesaDetalhesModal from "./MesaDetalhesModal";
+import ModalAbrirComanda from "./ModalAbrirComanda";
 
 interface ModalMesaProps {
   isOpen: boolean;
@@ -97,122 +98,6 @@ function ModalMesa({ isOpen, onClose, onSuccess, mesa }: ModalMesaProps) {
             className="w-full py-3 rounded-xl font-semibold text-white bg-[#7B2CFF] hover:bg-[#9A4DFF] disabled:opacity-50"
           >
             {loading ? "Salvando..." : mesa ? "Atualizar" : "Criar Mesa"}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-interface ModalAbrirComandaProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess: () => void;
-  mesa: Mesa | null;
-}
-
-function ModalAbrirComanda({ isOpen, onClose, onSuccess, mesa }: ModalAbrirComandaProps) {
-  const [clientes, setClientes] = useState<string[]>([]);
-  const [clienteInput, setClienteInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const adicionarCliente = () => {
-    if (clienteInput.trim() && clientes.length < (mesa?.capacidade || 4)) {
-      setClientes([...clientes, clienteInput.trim()]);
-      setClienteInput("");
-    }
-  };
-
-  const removerCliente = (index: number) => {
-    setClientes(clientes.filter((_, i) => i !== index));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!mesa) return;
-    
-    setLoading(true);
-    setError("");
-
-    try {
-      await comandaService.abrirMesa(mesa.id, clientes);
-      onSuccess();
-      onClose();
-      setClientes([]);
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Erro ao abrir comanda");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (!isOpen || !mesa) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-[#12121A] rounded-2xl w-full max-w-md p-6 border border-[#7B2CFF]/20">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-[#F5F5FA]">
-            Abrir Comanda - Mesa {mesa.numeroMesa}
-          </h2>
-          <button onClick={onClose} className="text-[#B8B8C8] hover:text-white">
-            <X size={24} />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-[#B8B8C8] mb-2">
-              Clientes (max. {mesa.capacidade})
-            </label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={clienteInput}
-                onChange={(e) => setClienteInput(e.target.value)}
-                placeholder="Nome do cliente"
-                className="flex-1 bg-[#08080D] border border-gray-700 rounded-xl px-4 py-3 text-[#F5F5FA] outline-none focus:border-[#7B2CFF]"
-              />
-              <button
-                type="button"
-                onClick={adicionarCliente}
-                disabled={clientes.length >= mesa.capacidade}
-                className="px-4 py-2 bg-[#7B2CFF]/20 rounded-xl text-[#B47DFF] hover:bg-[#7B2CFF]/30 disabled:opacity-50"
-              >
-                <Plus size={20} />
-              </button>
-            </div>
-          </div>
-
-          {clientes.length > 0 && (
-            <div className="bg-[#08080D] rounded-xl p-3">
-              <p className="text-[#B8B8C8] text-sm mb-2">Clientes adicionados:</p>
-              <div className="space-y-1">
-                {clientes.map((cliente, index) => (
-                  <div key={index} className="flex justify-between items-center text-[#F5F5FA]">
-                    <span>{cliente}</span>
-                    <button
-                      type="button"
-                      onClick={() => removerCliente(index)}
-                      className="text-red-400 hover:text-red-300"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {error && <div className="text-red-400 text-sm">{error}</div>}
-
-          <button
-            type="submit"
-            disabled={loading || clientes.length === 0}
-            className="w-full py-3 rounded-xl font-semibold text-white bg-green-500 hover:bg-green-600 disabled:opacity-50"
-          >
-            {loading ? "Abrindo..." : "Abrir Comanda"}
           </button>
         </form>
       </div>
@@ -433,7 +318,9 @@ export default function MesasManager() {
           setMesaSelecionada(null);
           loadMesas();
         }}
-        mesa={mesaSelecionada}
+        mesaId={mesaSelecionada?.id || null}
+        capacidade={mesaSelecionada?.capacidade || 4}
+        numeroMesa={mesaSelecionada?.numeroMesa || 0}
       />
 
       <ModalConfirmarDelete
