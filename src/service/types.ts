@@ -382,3 +382,35 @@ export interface PagamentoIndividualResponse {
   valorPago: number;
   formaPagamento: string;
 }
+
+
+// Adicione no final do arquivo types.ts
+
+// Tipos para Pagamento de Pulseira
+export interface PagamentoPulseiraRequest {
+  numeroPulseira: string;
+  valorPago: number;
+  formaPagamento: string;
+}
+
+export interface PagamentoPulseiraResponse {
+  message: string;
+  numeroPulseira: string;
+  nomeCliente: string;
+  valorPago: number;
+  formaPagamento: string;
+  status: string;
+  agrupado: boolean;
+  totalPulseirasPagas: number;
+}
+
+export interface PulseiraDetalhesResponse {
+  id: number;
+  numeroPulseira: string;
+  nomeCliente: string;
+  valorTotal: number;
+  isAtivo: boolean;
+  pulseiraAgrupadaCom: string | null;
+  itens: ItemConsumo[];
+  totalPulseirasAgrupadas?: number;
+}

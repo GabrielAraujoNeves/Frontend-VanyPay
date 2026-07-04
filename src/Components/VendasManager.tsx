@@ -54,6 +54,7 @@ export default function VendasManager() {
   const [adicionandoCliente, setAdicionandoCliente] = useState(false);
   const [capacidadeMesa, setCapacidadeMesa] = useState(4);
   const [comandaInfo, setComandaInfo] = useState<any>(null);
+  const [pulseiraSelecionada, setPulseiraSelecionada] = useState<string>("");
 
   const loadData = async () => {
     setLoading(true);
@@ -152,6 +153,7 @@ export default function VendasManager() {
     }
   };
 
+  // Buscar comanda da pulseira - simplificado
   const buscarComandaPulseira = async (numeroPulseira: string) => {
     setLoadingClientes(true);
     setErrorMensagem(null);
@@ -163,15 +165,23 @@ export default function VendasManager() {
 
       if (response && response.id) {
         setComandaIdAtual(response.id);
+        setPulseiraSelecionada(numeroPulseira);
         await buscarClientesDaComanda(response.id);
       } else {
+        // Se não tiver comanda, ainda assim permite adicionar produto
+        setPulseiraSelecionada(numeroPulseira);
         setClientes([]);
-        setErrorMensagem("Nenhuma comanda encontrada para esta pulseira");
+        setComandaIdAtual(null);
+        setErrorMensagem("Pulseira selecionada. Adicione produtos diretamente.");
+        console.log(`✅ Pulseira ${numeroPulseira} selecionada para adicionar produtos`);
       }
     } catch (error) {
       console.error("Erro ao buscar comanda da pulseira:", error);
+      // Mesmo com erro, mantém a pulseira selecionada
+      setPulseiraSelecionada(numeroPulseira);
       setClientes([]);
-      setErrorMensagem("Erro ao carregar dados da pulseira");
+      setComandaIdAtual(null);
+      setErrorMensagem("Pulseira selecionada. Adicione produtos diretamente.");
     } finally {
       setLoadingClientes(false);
     }
@@ -244,6 +254,7 @@ export default function VendasManager() {
     setItemParaRemover(null);
     setComandaInfo(null);
     setCapacidadeMesa(4);
+    setPulseiraSelecionada("");
 
     if (tipoVenda === "mesa") {
       if (item.isOcupada) {
@@ -277,9 +288,16 @@ export default function VendasManager() {
     setItemParaRemover(null);
   };
 
-  const handleAddProduto = (produto: Produto) => {
+  const handleAddProduto = async (produto: Produto) => {
     console.log(`📦 Adicionando produto: ${produto.nome} (R$ ${produto.preco.toFixed(2)})`);
 
+    // Se for pulseira, adicionar diretamente via API
+    if (tipoVenda === "pulseira" && pulseiraSelecionada) {
+      await handleAddProdutoPulseira(produto);
+      return;
+    }
+
+    // Se for mesa, adicionar ao carrinho
     const existingItem = carrinho.find(item => item.produtoId === produto.id);
     if (existingItem) {
       setCarrinho(carrinho.map(item =>
@@ -295,6 +313,37 @@ export default function VendasManager() {
         quantidade: 1,
         subtotal: produto.preco
       }]);
+    }
+  };
+
+  // Função para adicionar produto diretamente à pulseira
+  const handleAddProdutoPulseira = async (produto: Produto) => {
+    console.log(`📦 Adicionando produto à pulseira ${pulseiraSelecionada}: ${produto.nome}`);
+
+    setAdicionandoProduto(true);
+    setErrorMensagem(null);
+    try {
+      const response = await pulseiraService.adicionarProduto(
+        pulseiraSelecionada,
+        produto.id,
+        1 // quantidade padrão
+      );
+      console.log("✅ Produto adicionado à pulseira:", response);
+
+      setMensagemSucesso(`✅ Produto "${produto.nome}" adicionado à pulseira ${pulseiraSelecionada}!`);
+
+      // Recarregar a comanda da pulseira para atualizar os itens
+      await buscarComandaPulseira(pulseiraSelecionada);
+
+      setTimeout(() => {
+        setMensagemSucesso(null);
+      }, 3000);
+
+    } catch (error: any) {
+      console.error("❌ Erro ao adicionar produto à pulseira:", error);
+      setErrorMensagem(error.response?.data?.message || "Erro ao adicionar produto à pulseira");
+    } finally {
+      setAdicionandoProduto(false);
     }
   };
 
@@ -480,33 +529,96 @@ export default function VendasManager() {
       );
     }
 
-
     if (tipoVenda === "pulseira") {
-      return pulseiras.map(pulseira => (
+      if (pulseiras.length === 0) {
+        return (
+          <div className="text-center py-12 bg-[#12121A] rounded-2xl border border-gray-700">
+            <Sparkles size={48} className="mx-auto text-[#B8B8C8] mb-4" />
+            <p className="text-[#F5F5FA] font-semibold">Nenhuma pulseira cadastrada</p>
+            <p className="text-[#B8B8C8] text-sm mt-2">Cadastre pulseiras para começar a vender</p>
+          </div>
+        );
+      }
+
+      return (
+        <div className="flex flex-wrap gap-3">
+          {pulseiras.map(pulseira => (
+            <button
+              key={pulseira.id}
+              onClick={() => handleSelectItem(pulseira)}
+              className={`
+                relative w-[100px] h-[100px] rounded-xl border-2 transition-all text-center flex flex-col items-center justify-center p-2
+                ${selectedItem?.id === pulseira.id
+                  ? "border-[#7B2CFF] bg-[#7B2CFF]/10 shadow-[0_0_20px_rgba(123,44,255,0.3)]"
+                  : "border-gray-700 bg-[#08080D] hover:border-[#7B2CFF]/50 hover:bg-[#12121A]"
+                }
+                ${pulseira.isAtivo ? 'border-purple-500/30' : 'border-gray-500/30'}
+                hover:scale-105 transition-all duration-200
+              `}
+            >
+              {/* Badge de status */}
+              <div className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full ${pulseira.isAtivo ? 'bg-purple-500 animate-pulse' : 'bg-gray-500'
+                }`} />
+
+              {/* Número da Pulseira */}
+              <div className="text-2xl font-bold text-[#F5F5FA]">
+                #{pulseira.numeroPulseira}
+              </div>
+
+              {/* Nome do Cliente */}
+              <div className="text-[#B8B8C8] text-xs mt-1 truncate max-w-[80px]">
+                {pulseira.nomeCliente}
+              </div>
+
+              {/* Status */}
+              <div className={`mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${pulseira.isAtivo
+                  ? 'bg-purple-500/20 text-purple-400'
+                  : 'bg-gray-500/20 text-gray-400'
+                }`}>
+                {pulseira.isAtivo ? 'ATIVA' : 'INATIVA'}
+              </div>
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    if (tipoVenda === "cartao") {
+      if (cartoes.length === 0) {
+        return (
+          <div className="text-center py-12 bg-[#12121A] rounded-2xl border border-gray-700">
+            <Wallet size={48} className="mx-auto text-[#B8B8C8] mb-4" />
+            <p className="text-[#F5F5FA] font-semibold">Nenhum cartão cadastrado</p>
+            <p className="text-[#B8B8C8] text-sm mt-2">Cadastre cartões para começar a vender</p>
+          </div>
+        );
+      }
+
+      return cartoes.map(cartao => (
         <button
-          key={pulseira.id}
-          onClick={() => handleSelectItem(pulseira)}
-          className={`w-full p-4 rounded-xl border transition-all text-left ${selectedItem?.id === pulseira.id
+          key={cartao.id}
+          onClick={() => handleSelectItem(cartao)}
+          className={`w-full p-4 rounded-xl border transition-all text-left ${selectedItem?.id === cartao.id
             ? "border-[#7B2CFF] bg-[#7B2CFF]/10"
             : "border-gray-700 bg-[#08080D] hover:border-[#7B2CFF]/50"
             }`}
         >
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-500/20 rounded-full">
-                <Sparkles size={20} className="text-purple-400" />
+              <div className="p-2 bg-blue-500/20 rounded-full">
+                <CreditCard size={20} className="text-blue-400" />
               </div>
               <div>
-                <h3 className="font-semibold text-[#F5F5FA]">Pulseira {pulseira.numeroPulseira}</h3>
-                <p className="text-[#B8B8C8] text-sm">{pulseira.nomeCliente}</p>
+                <h3 className="font-semibold text-[#F5F5FA]">Cartão {cartao.numeroCartao}</h3>
+                <p className="text-[#B8B8C8] text-sm">{cartao.nomeCliente}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className={`px-2 py-1 rounded-full text-xs ${pulseira.isAtivo
+              <span className={`px-2 py-1 rounded-full text-xs ${cartao.isAtivo
                 ? "bg-green-500/20 text-green-400"
                 : "bg-gray-500/20 text-gray-400"
                 }`}>
-                {pulseira.isAtivo ? "ATIVA" : "INATIVA"}
+                {cartao.isAtivo ? "ATIVO" : "INATIVO"}
               </span>
               <ChevronRight size={18} className="text-[#B8B8C8]" />
             </div>
@@ -515,37 +627,7 @@ export default function VendasManager() {
       ));
     }
 
-    return cartoes.map(cartao => (
-      <button
-        key={cartao.id}
-        onClick={() => handleSelectItem(cartao)}
-        className={`w-full p-4 rounded-xl border transition-all text-left ${selectedItem?.id === cartao.id
-          ? "border-[#7B2CFF] bg-[#7B2CFF]/10"
-          : "border-gray-700 bg-[#08080D] hover:border-[#7B2CFF]/50"
-          }`}
-      >
-        <div className="flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-blue-500/20 rounded-full">
-              <CreditCard size={20} className="text-blue-400" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-[#F5F5FA]">Cartão {cartao.numeroCartao}</h3>
-              <p className="text-[#B8B8C8] text-sm">{cartao.nomeCliente}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={`px-2 py-1 rounded-full text-xs ${cartao.isAtivo
-              ? "bg-green-500/20 text-green-400"
-              : "bg-gray-500/20 text-gray-400"
-              }`}>
-              {cartao.isAtivo ? "ATIVO" : "INATIVO"}
-            </span>
-            <ChevronRight size={18} className="text-[#B8B8C8]" />
-          </div>
-        </div>
-      </button>
-    ));
+    return null;
   };
 
   return (
