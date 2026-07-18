@@ -1,18 +1,12 @@
 import { RefreshCw, Sparkles, Table, Wallet, User, DollarSign, CreditCard, CheckCircle, XCircle, Users, Trash2, Package, Eye, Link, Unlink } from "lucide-react";
 import { useState, useEffect } from "react";
 import { mesaService, pagamentoService, pulseiraService, pagamentoPulseiraService } from "../service/api";
+import type { MesaDetalhada, ClienteComItem, ItemConsumo } from "../service/types";
 
 type TipoPagamento = "mesa" | "pulseira" | "cartao";
 
-interface ItemConsumo {
-  itemId: number;
-  produtoNome: string;
-  quantidade: number;
-  precoUnitario: number;
-  precoTotal: number;
-}
-
-interface Cliente {
+// Interface para Cliente (usando os dados da API)
+interface ClienteLocal {
   id: number;
   nome: string;
   valorTotal: number;
@@ -20,6 +14,7 @@ interface Cliente {
   itens?: ItemConsumo[];
 }
 
+// Interface para Mesa (convertida de MesaDetalhada)
 interface MesaComanda {
   id: number;
   numeroMesa: number;
@@ -29,10 +24,11 @@ interface MesaComanda {
     comandaId: number;
     numeroComanda: string;
     valorTotal: number;
-    clientes: Cliente[];
+    clientes: ClienteLocal[];
   } | null;
 }
 
+// Interface para Pulseira (convertida)
 interface PulseiraDetalhada {
   id: number;
   numeroPulseira: string;
@@ -50,9 +46,9 @@ export default function Pagamentos() {
   // Estados para Mesa
   const [mesas, setMesas] = useState<MesaComanda[]>([]);
   const [selectedMesa, setSelectedMesa] = useState<MesaComanda | null>(null);
-  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [clientes, setClientes] = useState<ClienteLocal[]>([]);
   const [selectedClientes, setSelectedClientes] = useState<number[]>([]);
-  const [clienteDetalhes, setClienteDetalhes] = useState<Cliente | null>(null);
+  const [clienteDetalhes, setClienteDetalhes] = useState<ClienteLocal | null>(null);
 
   // Estados para Pulseira
   const [pulseiras, setPulseiras] = useState<PulseiraDetalhada[]>([]);
@@ -80,11 +76,40 @@ export default function Pagamentos() {
       if (tipoPagamento === "mesa") {
         const response = await mesaService.listDetalhadas();
         console.log("Mesas detalhadas:", response);
-        setMesas(response.mesas || []);
+        // Converter MesaDetalhada para MesaComanda
+        const mesasConvertidas: MesaComanda[] = response.mesas.map((mesa: MesaDetalhada) => ({
+          id: mesa.id,
+          numeroMesa: mesa.numeroMesa,
+          capacidade: mesa.capacidade,
+          isOcupada: mesa.isOcupada,
+          comanda: mesa.comanda ? {
+            comandaId: mesa.comanda.comandaId,
+            numeroComanda: mesa.comanda.numeroComanda,
+            valorTotal: mesa.comanda.valorTotal,
+            clientes: mesa.comanda.clientes.map((cliente: ClienteComItem) => ({
+              id: cliente.id,
+              nome: cliente.nome,
+              valorTotal: cliente.valorTotal,
+              pago: cliente.pago,
+              itens: cliente.itens
+            }))
+          } : null
+        }));
+        setMesas(mesasConvertidas);
       } else if (tipoPagamento === "pulseira") {
         const response = await pulseiraService.listAll();
         console.log("Pulseiras carregadas:", response);
-        setPulseiras(response.pulseiras || []);
+        // Converter Pulseira para PulseiraDetalhada
+        const pulseirasConvertidas: PulseiraDetalhada[] = response.pulseiras.map((pulseira: any) => ({
+          id: pulseira.id,
+          numeroPulseira: pulseira.numeroPulseira,
+          nomeCliente: pulseira.nomeCliente,
+          valorTotal: 0, // Será atualizado ao selecionar
+          isAtivo: pulseira.isAtivo,
+          pulseiraAgrupadaCom: pulseira.pulseiraAgrupadaCom,
+          itens: []
+        }));
+        setPulseiras(pulseirasConvertidas);
       }
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
@@ -111,7 +136,7 @@ export default function Pagamentos() {
         console.log("Clientes detalhes:", response);
         setClientes(response.clientes || []);
         
-        const total = response.clientes.reduce((sum: number, c: Cliente) => sum + (c.valorTotal || 0), 0);
+        const total = response.clientes.reduce((sum: number, c: ClienteLocal) => sum + (c.valorTotal || 0), 0);
         setValorPago(total.toFixed(2));
       } catch (error) {
         console.error("Erro ao buscar clientes:", error);
@@ -184,7 +209,7 @@ export default function Pagamentos() {
     }
   };
 
-  const handleVerItens = (e: React.MouseEvent, cliente: Cliente) => {
+  const handleVerItens = (e: React.MouseEvent, cliente: ClienteLocal) => {
     e.stopPropagation();
     setClienteDetalhes(cliente);
   };
@@ -258,33 +283,53 @@ export default function Pagamentos() {
       const response = await pagamentoPulseiraService.buscarPulseiraDetalhes(pulseira.numeroPulseira);
       console.log("Detalhes da pulseira:", response);
       
-      const isAgrupada = response.pulseiraAgrupadaCom !== null && response.pulseiraAgrupadaCom !== undefined;
-      const pulseiraPrincipal = response.pulseiraAgrupadaCom;
+      const estaAgrupada = response.estaAgrupada === true;
+      const pulseiraPrincipal = response.pulseiraPrincipal;
+      const pulseiraSecundaria = response.pulseiraSecundaria;
+      
+      let valorTotal = 0;
+      if (estaAgrupada) {
+        valorTotal = response.valorTotalAgrupado || 0;
+      } else {
+        valorTotal = response.saldoPrincipal || response.saldoTotal || 0;
+      }
+      
+      // Extrair itens
+      let itens = [];
+      if (response.itens && response.itens.length > 0) {
+        itens = response.itens;
+      } else if (response.itensPrincipal && response.itensPrincipal.length > 0) {
+        itens = response.itensPrincipal;
+      } else if (response.itensSecundaria && response.itensSecundaria.length > 0) {
+        itens = response.itensSecundaria;
+      }
       
       setPulseiraInfo({
         ...response,
-        isAgrupada,
+        estaAgrupada,
         pulseiraPrincipal,
-        totalPulseiras: response.totalPulseirasAgrupadas || 1,
-        valorTotal: response.valorTotal || 0
+        pulseiraSecundaria,
+        valorTotal: valorTotal,
+        itens: itens,
+        clienteNome: response.nomeClientePrincipal || response.nomeCliente || pulseira.nomeCliente
       });
       
-      if (isAgrupada) {
+      if (estaAgrupada) {
         setMensagem({ 
           type: 'info', 
-          text: `🔗 Esta pulseira está agrupada com a pulseira ${pulseiraPrincipal}. O pagamento será conjunto.` 
+          text: `🔗 Pulseira agrupada com ${pulseiraSecundaria || pulseiraPrincipal}. Pagamento conjunto de R$ ${valorTotal.toFixed(2)}` 
         });
       }
       
-      setValorPago((response.valorTotal || 0).toFixed(2));
+      setValorPago(valorTotal.toFixed(2));
       
     } catch (error) {
       console.error("Erro ao buscar detalhes da pulseira:", error);
       setPulseiraInfo({
         ...pulseira,
-        isAgrupada: false,
-        totalPulseiras: 1,
-        valorTotal: pulseira.valorTotal || 0
+        estaAgrupada: false,
+        valorTotal: pulseira.valorTotal || 0,
+        itens: pulseira.itens || []
       });
       setValorPago((pulseira.valorTotal || 0).toFixed(2));
     }
@@ -356,6 +401,7 @@ export default function Pagamentos() {
     .filter(c => selectedClientes.includes(c.id))
     .reduce((sum, c) => sum + (c.valorTotal || 0), 0);
 
+  // CORRIGIDO: Função para agrupar itens dos clientes selecionados
   const getItensSelecionados = () => {
     const itensMap = new Map<string, { quantidade: number; precoTotal: number; precoUnitario: number }>();
     
@@ -363,16 +409,18 @@ export default function Pagamentos() {
       .filter(c => selectedClientes.includes(c.id))
       .forEach(cliente => {
         cliente.itens?.forEach(item => {
-          const key = item.produtoNome;
-          if (itensMap.has(key)) {
-            const existing = itensMap.get(key)!;
-            itensMap.set(key, {
+          // Para itens da mesa, a estrutura é item.produto.nome
+          // Para itens da pulseira, pode ser item.produtoNome
+          const nome = item.produto?.nome || (item as any).produtoNome || 'Produto';
+          if (itensMap.has(nome)) {
+            const existing = itensMap.get(nome)!;
+            itensMap.set(nome, {
               quantidade: existing.quantidade + item.quantidade,
               precoTotal: existing.precoTotal + item.precoTotal,
               precoUnitario: item.precoUnitario
             });
           } else {
-            itensMap.set(key, {
+            itensMap.set(nome, {
               quantidade: item.quantidade,
               precoTotal: item.precoTotal,
               precoUnitario: item.precoUnitario
@@ -396,10 +444,10 @@ export default function Pagamentos() {
         return renderizarPulseira();
       case "cartao":
         return (
-          <div className="text-center py-12 bg-[#12121A] rounded-2xl border border-[#7B2CFF]/20">
-            <Wallet size={48} className="mx-auto text-[#B8B8C8] mb-4" />
-            <p className="text-[#F5F5FA] font-semibold">Pagamento com Cartão</p>
-            <p className="text-[#B8B8C8] text-sm mt-2">Funcionalidade em desenvolvimento</p>
+          <div className="text-center py-12 bg-surface rounded-2xl border border-primary/20">
+            <Wallet size={48} className="mx-auto text-secondary mb-4" />
+            <p className="text-text font-semibold">Pagamento com Cartão</p>
+            <p className="text-secondary text-sm mt-2">Funcionalidade em desenvolvimento</p>
           </div>
         );
       case "mesa":
@@ -413,15 +461,15 @@ export default function Pagamentos() {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Lista de Mesas */}
-        <div className="bg-[#12121A] rounded-2xl border border-[#7B2CFF]/20 p-6 lg:col-span-1">
-          <h2 className="text-xl font-bold text-[#F5F5FA] mb-4 flex items-center gap-2">
-            <Table size={20} className="text-[#7B2CFF]" />
+        <div className="bg-surface rounded-2xl border border-primary/20 p-6 lg:col-span-1">
+          <h2 className="text-xl font-bold text-text mb-4 flex items-center gap-2">
+            <Table size={20} className="text-primary" />
             Mesas Ocupadas
           </h2>
           
           {mesasOcupadas.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-[#B8B8C8]">Nenhuma mesa ocupada</p>
+              <p className="text-secondary">Nenhuma mesa ocupada</p>
             </div>
           ) : (
             <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
@@ -431,19 +479,19 @@ export default function Pagamentos() {
                   onClick={() => handleSelectMesa(mesa)}
                   className={`w-full p-3 rounded-xl border transition-all text-left ${
                     selectedMesa?.id === mesa.id
-                      ? "border-[#7B2CFF] bg-[#7B2CFF]/10"
-                      : "border-gray-700 bg-[#08080D] hover:border-[#7B2CFF]/50"
+                      ? "border-primary bg-primary/10"
+                      : "border-gray-700 bg-background hover:border-primary/50"
                   }`}
                 >
                   <div className="flex justify-between items-center">
                     <div>
-                      <h3 className="font-semibold text-[#F5F5FA]">Mesa {mesa.numeroMesa}</h3>
-                      <p className="text-[#B8B8C8] text-sm">
+                      <h3 className="font-semibold text-text">Mesa {mesa.numeroMesa}</h3>
+                      <p className="text-secondary text-sm">
                         Total: {formatCurrency(mesa.comanda?.valorTotal || 0)}
                       </p>
                     </div>
                     <div className="text-right">
-                      <span className="text-[#B8B8C8] text-xs">
+                      <span className="text-secondary text-xs">
                         {mesa.comanda?.clientes.filter(c => !c.pago).length || 0} pendentes
                       </span>
                     </div>
@@ -455,23 +503,23 @@ export default function Pagamentos() {
         </div>
 
         {/* Clientes da Mesa Selecionada */}
-        <div className="bg-[#12121A] rounded-2xl border border-[#7B2CFF]/20 p-6 lg:col-span-1">
+        <div className="bg-surface rounded-2xl border border-primary/20 p-6 lg:col-span-1">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-[#F5F5FA] flex items-center gap-2">
-              <Users size={20} className="text-[#7B2CFF]" />
+            <h2 className="text-xl font-bold text-text flex items-center gap-2">
+              <Users size={20} className="text-primary" />
               Clientes
             </h2>
             {selectedMesa && clientes.length > 0 && (
               <div className="flex gap-2">
                 <button
                   onClick={selecionarTodosClientes}
-                  className="text-xs bg-[#7B2CFF]/20 text-[#B47DFF] px-2 py-1 rounded-lg hover:bg-[#7B2CFF]/30 transition-all"
+                  className="text-xs bg-primary/20 text-primary-light px-2 py-1 rounded-lg hover:bg-primary/30 transition-all"
                 >
                   Selecionar Não Pagos
                 </button>
                 <button
                   onClick={deselecionarTodos}
-                  className="text-xs bg-gray-700/20 text-[#B8B8C8] px-2 py-1 rounded-lg hover:bg-gray-700/30 transition-all"
+                  className="text-xs bg-gray-700/20 text-secondary px-2 py-1 rounded-lg hover:bg-gray-700/30 transition-all"
                 >
                   Limpar
                 </button>
@@ -481,11 +529,11 @@ export default function Pagamentos() {
           
           {!selectedMesa ? (
             <div className="text-center py-8">
-              <p className="text-[#B8B8C8]">Selecione uma mesa</p>
+              <p className="text-secondary">Selecione uma mesa</p>
             </div>
           ) : clientes.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-[#B8B8C8]">Nenhum cliente nesta mesa</p>
+              <p className="text-secondary">Nenhum cliente nesta mesa</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -499,10 +547,10 @@ export default function Pagamentos() {
                     onClick={() => toggleClienteSelection(cliente.id)}
                     className={`p-3 rounded-xl border transition-all cursor-pointer ${
                       isSelected && !isPago
-                        ? "border-[#7B2CFF] bg-[#7B2CFF]/10"
+                        ? "border-primary bg-primary/10"
                         : isPago
                         ? "border-green-500/30 bg-green-500/5 cursor-default"
-                        : "border-gray-700 bg-[#08080D] hover:border-[#7B2CFF]/50"
+                        : "border-gray-700 bg-background hover:border-primary/50"
                     }`}
                   >
                     <div className="flex justify-between items-center">
@@ -512,26 +560,26 @@ export default function Pagamentos() {
                           checked={isSelected}
                           onChange={(e) => handleCheckboxChange(e, cliente.id)}
                           disabled={isPago}
-                          className="w-4 h-4 accent-[#7B2CFF] disabled:opacity-50 cursor-pointer"
+                          className="w-4 h-4 accent-primary disabled:opacity-50 cursor-pointer"
                           onClick={(e) => e.stopPropagation()}
                         />
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <h3 className="font-semibold text-[#F5F5FA]">{cliente.nome}</h3>
+                            <h3 className="font-semibold text-text">{cliente.nome}</h3>
                             {isPago && (
                               <span className="text-green-400 text-xs font-semibold">✓ PAGO</span>
                             )}
                             {!isPago && cliente.itens && cliente.itens.length > 0 && (
                               <button
                                 onClick={(e) => handleVerItens(e, cliente)}
-                                className="p-1 hover:bg-[#7B2CFF]/20 rounded-lg transition-all"
+                                className="p-1 hover:bg-primary/20 rounded-lg transition-all"
                                 title="Ver itens"
                               >
-                                <Eye size={14} className="text-[#B8B8C8]" />
+                                <Eye size={14} className="text-secondary" />
                               </button>
                             )}
                           </div>
-                          <p className="text-[#B8B8C8] text-sm">
+                          <p className="text-secondary text-sm">
                             {formatCurrency(cliente.valorTotal)} {cliente.itens && cliente.itens.length > 0 && `• ${cliente.itens.length} itens`}
                           </p>
                         </div>
@@ -554,53 +602,53 @@ export default function Pagamentos() {
         </div>
 
         {/* Pagamento - Mesa */}
-        <div className="bg-[#12121A] rounded-2xl border border-[#7B2CFF]/20 p-6 lg:col-span-1">
-          <h2 className="text-xl font-bold text-[#F5F5FA] mb-4 flex items-center gap-2">
-            <CreditCard size={20} className="text-[#7B2CFF]" />
+        <div className="bg-surface rounded-2xl border border-primary/20 p-6 lg:col-span-1">
+          <h2 className="text-xl font-bold text-text mb-4 flex items-center gap-2">
+            <CreditCard size={20} className="text-primary" />
             Realizar Pagamento
           </h2>
 
           {!selectedMesa ? (
             <div className="text-center py-8">
-              <p className="text-[#B8B8C8]">Selecione uma mesa</p>
+              <p className="text-secondary">Selecione uma mesa</p>
             </div>
           ) : selectedClientes.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-[#B8B8C8]">Selecione os clientes para pagar</p>
+              <p className="text-secondary">Selecione os clientes para pagar</p>
             </div>
           ) : (
             <div className="space-y-4">
               {itensSelecionados.length > 0 && (
-                <div className="bg-[#08080D] rounded-xl p-3 border border-gray-700">
+                <div className="bg-background rounded-xl p-3 border border-gray-700">
                   <div className="flex items-center gap-2 mb-2">
-                    <Package size={16} className="text-[#7B2CFF]" />
-                    <p className="text-[#B8B8C8] text-sm font-semibold">Itens para pagar</p>
-                    <span className="text-[#B8B8C8] text-xs ml-auto">
+                    <Package size={16} className="text-primary" />
+                    <p className="text-secondary text-sm font-semibold">Itens para pagar</p>
+                    <span className="text-secondary text-xs ml-auto">
                       {selectedClientes.length} cliente(s)
                     </span>
                   </div>
                   <div className="space-y-1 max-h-[150px] overflow-y-auto">
                     {itensSelecionados.map((item, index) => (
                       <div key={index} className="flex justify-between items-center text-sm border-b border-gray-800/50 pb-1">
-                        <span className="text-[#F5F5FA]">
+                        <span className="text-text">
                           {item.nome} 
-                          <span className="text-[#B8B8C8] text-xs ml-1">x{item.quantidade}</span>
+                          <span className="text-secondary text-xs ml-1">x{item.quantidade}</span>
                         </span>
-                        <span className="text-[#7B2CFF] font-semibold">
+                        <span className="text-primary font-semibold">
                           {formatCurrency(item.precoTotal)}
                         </span>
                       </div>
                     ))}
                   </div>
                   <div className="flex justify-between items-center mt-2 pt-2 border-t border-gray-700">
-                    <span className="text-[#F5F5FA] font-semibold">Total</span>
-                    <span className="text-[#7B2CFF] font-bold">{formatCurrency(totalSelecionado)}</span>
+                    <span className="text-text font-semibold">Total</span>
+                    <span className="text-primary font-bold">{formatCurrency(totalSelecionado)}</span>
                   </div>
                 </div>
               )}
 
               <div>
-                <label className="block text-[#B8B8C8] text-sm mb-1.5">Forma de Pagamento</label>
+                <label className="block text-secondary text-sm mb-1.5">Forma de Pagamento</label>
                 <div className="grid grid-cols-2 gap-2">
                   {formasPagamento.map(forma => (
                     <button
@@ -608,8 +656,8 @@ export default function Pagamentos() {
                       onClick={() => setFormaPagamento(forma.value)}
                       className={`p-2 rounded-lg border transition-all flex items-center gap-2 ${
                         formaPagamento === forma.value
-                          ? "border-[#7B2CFF] bg-[#7B2CFF]/10 text-[#F5F5FA]"
-                          : "border-gray-700 bg-[#08080D] text-[#B8B8C8] hover:border-[#7B2CFF]/50"
+                          ? "border-primary bg-primary/10 text-text"
+                          : "border-gray-700 bg-background text-secondary hover:border-primary/50"
                       }`}
                     >
                       <forma.icon size={16} />
@@ -620,8 +668,8 @@ export default function Pagamentos() {
               </div>
 
               <div>
-                <label className="block text-[#B8B8C8] text-sm mb-1.5">Valor a Pagar</label>
-                <div className="w-full bg-[#08080D] border border-gray-700 rounded-xl px-4 py-3 text-[#F5F5FA]">
+                <label className="block text-secondary text-sm mb-1.5">Valor a Pagar</label>
+                <div className="w-full bg-background border border-gray-700 rounded-xl px-4 py-3 text-text">
                   {formatCurrency(parseFloat(valorPago) || 0)}
                 </div>
               </div>
@@ -665,15 +713,15 @@ export default function Pagamentos() {
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Lista de Pulseiras */}
-        <div className="bg-[#12121A] rounded-2xl border border-[#7B2CFF]/20 p-6 lg:col-span-1">
-          <h2 className="text-xl font-bold text-[#F5F5FA] mb-4 flex items-center gap-2">
-            <Sparkles size={20} className="text-[#7B2CFF]" />
+        <div className="bg-surface rounded-2xl border border-primary/20 p-6 lg:col-span-1">
+          <h2 className="text-xl font-bold text-text mb-4 flex items-center gap-2">
+            <Sparkles size={20} className="text-primary" />
             Pulseiras Ativas
           </h2>
           
           {pulseirasAtivas.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-[#B8B8C8]">Nenhuma pulseira ativa</p>
+              <p className="text-secondary">Nenhuma pulseira ativa</p>
             </div>
           ) : (
             <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
@@ -683,17 +731,17 @@ export default function Pagamentos() {
                   onClick={() => handleSelectPulseira(pulseira)}
                   className={`w-full p-3 rounded-xl border transition-all text-left ${
                     selectedPulseira?.id === pulseira.id
-                      ? "border-[#7B2CFF] bg-[#7B2CFF]/10"
-                      : "border-gray-700 bg-[#08080D] hover:border-[#7B2CFF]/50"
+                      ? "border-primary bg-primary/10"
+                      : "border-gray-700 bg-background hover:border-primary/50"
                   }`}
                 >
                   <div className="flex justify-between items-center">
                     <div>
-                      <h3 className="font-semibold text-[#F5F5FA]">#{pulseira.numeroPulseira}</h3>
-                      <p className="text-[#B8B8C8] text-sm">{pulseira.nomeCliente}</p>
+                      <h3 className="font-semibold text-text">#{pulseira.numeroPulseira}</h3>
+                      <p className="text-secondary text-sm">{pulseira.nomeCliente}</p>
                     </div>
                     <div className="text-right">
-                      <span className="text-[#7B2CFF] font-bold">
+                      <span className="text-primary font-bold">
                         {formatCurrency(pulseira.valorTotal || 0)}
                       </span>
                       {pulseira.pulseiraAgrupadaCom && (
@@ -711,29 +759,29 @@ export default function Pagamentos() {
         </div>
 
         {/* Detalhes da Pulseira Selecionada */}
-        <div className="bg-[#12121A] rounded-2xl border border-[#7B2CFF]/20 p-6 lg:col-span-1">
-          <h2 className="text-xl font-bold text-[#F5F5FA] mb-4 flex items-center gap-2">
-            <User size={20} className="text-[#7B2CFF]" />
+        <div className="bg-surface rounded-2xl border border-primary/20 p-6 lg:col-span-1">
+          <h2 className="text-xl font-bold text-text mb-4 flex items-center gap-2">
+            <User size={20} className="text-primary" />
             Detalhes da Pulseira
           </h2>
           
           {!selectedPulseira ? (
             <div className="text-center py-8">
-              <p className="text-[#B8B8C8]">Selecione uma pulseira</p>
+              <p className="text-secondary">Selecione uma pulseira</p>
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="bg-[#08080D] rounded-xl p-3 border border-gray-700">
+              <div className="bg-background rounded-xl p-3 border border-gray-700">
                 <div className="flex justify-between items-center">
-                  <span className="text-[#B8B8C8] text-sm">Pulseira</span>
-                  <span className="text-[#F5F5FA] font-semibold">#{selectedPulseira.numeroPulseira}</span>
+                  <span className="text-secondary text-sm">Pulseira</span>
+                  <span className="text-text font-semibold">#{selectedPulseira.numeroPulseira}</span>
                 </div>
                 <div className="flex justify-between items-center mt-1">
-                  <span className="text-[#B8B8C8] text-sm">Cliente</span>
-                  <span className="text-[#F5F5FA]">{selectedPulseira.nomeCliente}</span>
+                  <span className="text-secondary text-sm">Cliente</span>
+                  <span className="text-text">{pulseiraInfo?.clienteNome || selectedPulseira.nomeCliente}</span>
                 </div>
                 <div className="flex justify-between items-center mt-1">
-                  <span className="text-[#B8B8C8] text-sm">Status</span>
+                  <span className="text-secondary text-sm">Status</span>
                   <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                     selectedPulseira.isAtivo 
                       ? 'bg-green-500/20 text-green-400'
@@ -744,61 +792,68 @@ export default function Pagamentos() {
                 </div>
               </div>
 
-              {pulseiraInfo && pulseiraInfo.isAgrupada && (
+              {pulseiraInfo && pulseiraInfo.estaAgrupada && (
                 <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3">
                   <div className="flex items-center gap-2 text-yellow-400">
                     <Link size={16} />
                     <span className="font-semibold">Pulseira Agrupada</span>
                   </div>
-                  <p className="text-[#B8B8C8] text-sm mt-1">
-                    Agrupada com: <span className="text-[#F5F5FA]">#{pulseiraInfo.pulseiraPrincipal}</span>
+                  <p className="text-secondary text-sm mt-1">
+                    Principal: <span className="text-text">#{pulseiraInfo.pulseiraPrincipal}</span>
                   </p>
-                  <p className="text-[#B8B8C8] text-sm">
-                    Total de pulseiras: <span className="text-[#F5F5FA]">{pulseiraInfo.totalPulseiras}</span>
+                  <p className="text-secondary text-sm">
+                    Secundária: <span className="text-text">#{pulseiraInfo.pulseiraSecundaria}</span>
                   </p>
-                  <p className="text-[#B8B8C8] text-sm">
-                    Valor total: <span className="text-[#7B2CFF] font-bold">{formatCurrency(pulseiraInfo.valorTotal)}</span>
+                  <p className="text-secondary text-sm">
+                    Cliente Principal: <span className="text-text">{pulseiraInfo.nomeClientePrincipal}</span>
+                  </p>
+                  <p className="text-secondary text-sm">
+                    Cliente Secundário: <span className="text-text">{pulseiraInfo.nomeClienteSecundaria}</span>
+                  </p>
+                  <p className="text-secondary text-sm">
+                    Valor Total Agrupado: <span className="text-primary font-bold">{formatCurrency(pulseiraInfo.valorTotal)}</span>
                   </p>
                 </div>
               )}
 
-              {pulseiraInfo && !pulseiraInfo.isAgrupada && (
+              {pulseiraInfo && !pulseiraInfo.estaAgrupada && (
                 <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3">
                   <div className="flex items-center gap-2 text-blue-400">
                     <Unlink size={16} />
                     <span className="font-semibold">Pulseira Individual</span>
                   </div>
-                  <p className="text-[#B8B8C8] text-sm mt-1">
-                    Valor total: <span className="text-[#7B2CFF] font-bold">{formatCurrency(pulseiraInfo.valorTotal)}</span>
+                  <p className="text-secondary text-sm mt-1">
+                    Valor total: <span className="text-primary font-bold">{formatCurrency(pulseiraInfo.valorTotal)}</span>
                   </p>
                 </div>
               )}
 
-              {selectedPulseira.itens && selectedPulseira.itens.length > 0 && (
+              {/* Itens da Pulseira - CORRIGIDO */}
+              {(pulseiraInfo?.itens && pulseiraInfo.itens.length > 0) && (
                 <div>
                   <button
                     onClick={() => setMostrarItensPulseira(!mostrarItensPulseira)}
-                    className="text-sm text-[#B47DFF] hover:text-[#7B2CFF] transition-all flex items-center gap-2"
+                    className="text-sm text-primary-light hover:text-primary transition-all flex items-center gap-2"
                   >
                     <Package size={14} />
                     {mostrarItensPulseira ? 'Ocultar itens' : 'Ver itens consumidos'}
                   </button>
                   {mostrarItensPulseira && (
                     <div className="mt-2 space-y-1">
-                      {selectedPulseira.itens.map((item, index) => (
-                        <div key={index} className="flex justify-between items-center text-sm bg-[#08080D] p-2 rounded-lg">
-                          <span className="text-[#F5F5FA]">
-                            {item.produtoNome} 
-                            <span className="text-[#B8B8C8] text-xs ml-1">x{item.quantidade}</span>
+                      {pulseiraInfo.itens.map((item: any, index: number) => (
+                        <div key={index} className="flex justify-between items-center text-sm bg-background p-2 rounded-lg">
+                          <span className="text-text">
+                            {item.produtoNome || item.produto?.nome || 'Produto'} 
+                            <span className="text-secondary text-xs ml-1">x{item.quantidade}</span>
                           </span>
-                          <span className="text-[#7B2CFF]">
-                            {formatCurrency(item.precoTotal)}
+                          <span className="text-primary">
+                            {formatCurrency(item.precoTotal || (item.quantidade * item.precoUnitario))}
                           </span>
                         </div>
                       ))}
-                      <div className="flex justify-between items-center text-sm font-semibold bg-[#08080D] p-2 rounded-lg border-t border-gray-700">
-                        <span className="text-[#F5F5FA]">Total</span>
-                        <span className="text-[#7B2CFF]">{formatCurrency(selectedPulseira.valorTotal)}</span>
+                      <div className="flex justify-between items-center text-sm font-semibold bg-background p-2 rounded-lg border-t border-gray-700">
+                        <span className="text-text">Total</span>
+                        <span className="text-primary">{formatCurrency(pulseiraInfo.valorTotal || selectedPulseira.valorTotal)}</span>
                       </div>
                     </div>
                   )}
@@ -809,28 +864,28 @@ export default function Pagamentos() {
         </div>
 
         {/* Pagamento - Pulseira */}
-        <div className="bg-[#12121A] rounded-2xl border border-[#7B2CFF]/20 p-6 lg:col-span-1">
-          <h2 className="text-xl font-bold text-[#F5F5FA] mb-4 flex items-center gap-2">
-            <CreditCard size={20} className="text-[#7B2CFF]" />
+        <div className="bg-surface rounded-2xl border border-primary/20 p-6 lg:col-span-1">
+          <h2 className="text-xl font-bold text-text mb-4 flex items-center gap-2">
+            <CreditCard size={20} className="text-primary" />
             Realizar Pagamento
           </h2>
 
           {!selectedPulseira ? (
             <div className="text-center py-8">
-              <p className="text-[#B8B8C8]">Selecione uma pulseira</p>
+              <p className="text-secondary">Selecione uma pulseira</p>
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="bg-[#08080D] rounded-xl p-3 border border-gray-700">
-                <p className="text-[#B8B8C8] text-sm">Pulseira</p>
-                <p className="text-[#F5F5FA] font-semibold">#{selectedPulseira.numeroPulseira}</p>
-                <p className="text-[#B8B8C8] text-sm mt-1">
-                  Cliente: <span className="text-[#F5F5FA]">{selectedPulseira.nomeCliente}</span>
+              <div className="bg-background rounded-xl p-3 border border-gray-700">
+                <p className="text-secondary text-sm">Pulseira</p>
+                <p className="text-text font-semibold">#{selectedPulseira.numeroPulseira}</p>
+                <p className="text-secondary text-sm mt-1">
+                  Cliente: <span className="text-text">{pulseiraInfo?.clienteNome || selectedPulseira.nomeCliente}</span>
                 </p>
                 {pulseiraInfo && (
-                  <p className="text-[#B8B8C8] text-sm mt-1">
-                    Total a pagar: <span className="text-[#7B2CFF] font-bold">{formatCurrency(pulseiraInfo.valorTotal)}</span>
-                    {pulseiraInfo.isAgrupada && (
+                  <p className="text-secondary text-sm mt-1">
+                    Total a pagar: <span className="text-primary font-bold">{formatCurrency(pulseiraInfo.valorTotal)}</span>
+                    {pulseiraInfo.estaAgrupada && (
                       <span className="text-yellow-400 text-xs ml-2">(Agrupada)</span>
                     )}
                   </p>
@@ -850,7 +905,7 @@ export default function Pagamentos() {
               )}
 
               <div>
-                <label className="block text-[#B8B8C8] text-sm mb-1.5">Forma de Pagamento</label>
+                <label className="block text-secondary text-sm mb-1.5">Forma de Pagamento</label>
                 <div className="grid grid-cols-2 gap-2">
                   {formasPagamento.map(forma => (
                     <button
@@ -858,8 +913,8 @@ export default function Pagamentos() {
                       onClick={() => setFormaPagamento(forma.value)}
                       className={`p-2 rounded-lg border transition-all flex items-center gap-2 ${
                         formaPagamento === forma.value
-                          ? "border-[#7B2CFF] bg-[#7B2CFF]/10 text-[#F5F5FA]"
-                          : "border-gray-700 bg-[#08080D] text-[#B8B8C8] hover:border-[#7B2CFF]/50"
+                          ? "border-primary bg-primary/10 text-text"
+                          : "border-gray-700 bg-background text-secondary hover:border-primary/50"
                       }`}
                     >
                       <forma.icon size={16} />
@@ -870,17 +925,17 @@ export default function Pagamentos() {
               </div>
 
               <div>
-                <label className="block text-[#B8B8C8] text-sm mb-1.5">Valor a Pagar</label>
+                <label className="block text-secondary text-sm mb-1.5">Valor a Pagar</label>
                 <input
                   type="number"
                   step="0.01"
                   value={valorPago}
                   onChange={(e) => setValorPago(e.target.value)}
-                  className="w-full bg-[#08080D] border border-gray-700 rounded-xl px-4 py-3 text-[#F5F5FA] outline-none focus:border-[#7B2CFF]"
+                  className="w-full bg-background border border-gray-700 rounded-xl px-4 py-3 text-text outline-none focus:border-primary"
                   placeholder="0,00"
                 />
                 {pulseiraInfo && (
-                  <p className="text-[#B8B8C8] text-xs mt-1">
+                  <p className="text-secondary text-xs mt-1">
                     Total: {formatCurrency(pulseiraInfo.valorTotal)}
                   </p>
                 )}
@@ -899,7 +954,7 @@ export default function Pagamentos() {
                 ) : (
                   <>
                     <CheckCircle size={20} />
-                    {pulseiraInfo?.isAgrupada ? 'Pagar Grupo' : 'Pagar Pulseira'}
+                    {pulseiraInfo?.estaAgrupada ? 'Pagar Grupo' : 'Pagar Pulseira'}
                   </>
                 )}
               </button>
@@ -916,15 +971,15 @@ export default function Pagamentos() {
       {/* Header */}
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-[#F5F5FA] flex items-center gap-2">
-            <DollarSign size={28} className="text-[#7B2CFF]" />
+          <h1 className="text-3xl font-bold text-text flex items-center gap-2">
+            <DollarSign size={28} className="text-primary" />
             Pagamento
           </h1>
-          <p className="text-[#B8B8C8] mt-1">Selecione o tipo de pagamento e realize a operação</p>
+          <p className="text-secondary mt-1">Selecione o tipo de pagamento e realize a operação</p>
         </div>
         <button
           onClick={loadData}
-          className="flex items-center gap-2 px-4 py-2 bg-[#12121A] border border-gray-700 rounded-xl text-[#B8B8C8] hover:text-white hover:border-[#7B2CFF] transition-all"
+          className="flex items-center gap-2 px-4 py-2 bg-surface border border-gray-700 rounded-xl text-secondary hover:text-white hover:border-primary transition-all"
         >
           <RefreshCw size={18} />
           <span>Atualizar</span>
@@ -937,8 +992,8 @@ export default function Pagamentos() {
           onClick={() => setTipoPagamento("mesa")}
           className={`flex-1 py-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
             tipoPagamento === "mesa"
-              ? "bg-[#7B2CFF] text-white"
-              : "bg-[#12121A] text-[#B8B8C8] hover:bg-[#7B2CFF]/20"
+              ? "bg-primary text-white"
+              : "bg-surface text-secondary hover:bg-primary/20"
           }`}
         >
           <Table size={20} />
@@ -948,8 +1003,8 @@ export default function Pagamentos() {
           onClick={() => setTipoPagamento("pulseira")}
           className={`flex-1 py-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
             tipoPagamento === "pulseira"
-              ? "bg-[#7B2CFF] text-white"
-              : "bg-[#12121A] text-[#B8B8C8] hover:bg-[#7B2CFF]/20"
+              ? "bg-primary text-white"
+              : "bg-surface text-secondary hover:bg-primary/20"
           }`}
         >
           <Sparkles size={20} />
@@ -959,8 +1014,8 @@ export default function Pagamentos() {
           onClick={() => setTipoPagamento("cartao")}
           className={`flex-1 py-4 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
             tipoPagamento === "cartao"
-              ? "bg-[#7B2CFF] text-white"
-              : "bg-[#12121A] text-[#B8B8C8] hover:bg-[#7B2CFF]/20"
+              ? "bg-primary text-white"
+              : "bg-surface text-secondary hover:bg-primary/20"
           }`}
         >
           <Wallet size={20} />
@@ -970,7 +1025,7 @@ export default function Pagamentos() {
 
       {loading ? (
         <div className="text-center py-12">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#7B2CFF]"></div>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
       ) : (
         renderizarTipoPagamento()
@@ -979,20 +1034,20 @@ export default function Pagamentos() {
       {/* Modal de Detalhes do Cliente - só para Mesa */}
       {tipoPagamento === "mesa" && clienteDetalhes && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-[#12121A] rounded-2xl w-full max-w-md p-6 border border-[#7B2CFF]/20 max-h-[90vh] overflow-y-auto">
+          <div className="bg-surface rounded-2xl w-full max-w-md p-6 border border-primary/20 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h2 className="text-xl font-bold text-[#F5F5FA] flex items-center gap-2">
-                  <User size={20} className="text-[#7B2CFF]" />
+                <h2 className="text-xl font-bold text-text flex items-center gap-2">
+                  <User size={20} className="text-primary" />
                   {clienteDetalhes.nome}
                 </h2>
-                <p className="text-[#B8B8C8] text-sm">
+                <p className="text-secondary text-sm">
                   Total: {formatCurrency(clienteDetalhes.valorTotal)}
                 </p>
               </div>
               <button
                 onClick={handleFecharDetalhes}
-                className="text-[#B8B8C8] hover:text-white transition-colors"
+                className="text-secondary hover:text-white transition-colors"
               >
                 <XCircle size={24} />
               </button>
@@ -1001,30 +1056,30 @@ export default function Pagamentos() {
             {clienteDetalhes.itens && clienteDetalhes.itens.length > 0 ? (
               <div className="space-y-2">
                 {clienteDetalhes.itens.map((item, index) => (
-                  <div key={index} className="bg-[#08080D] rounded-xl p-3 border border-gray-700">
+                  <div key={index} className="bg-background rounded-xl p-3 border border-gray-700">
                     <div className="flex justify-between items-start">
                       <div>
-                        <p className="font-semibold text-[#F5F5FA]">{item.produtoNome}</p>
-                        <p className="text-[#B8B8C8] text-sm">
+                        <p className="font-semibold text-text">{item.produto.nome}</p>
+                        <p className="text-secondary text-sm">
                           {item.quantidade} x {formatCurrency(item.precoUnitario)}
                         </p>
                       </div>
-                      <p className="text-[#7B2CFF] font-semibold">
+                      <p className="text-primary font-semibold">
                         {formatCurrency(item.precoTotal)}
                       </p>
                     </div>
                   </div>
                 ))}
-                <div className="bg-[#08080D] rounded-xl p-3 border border-[#7B2CFF]/20">
+                <div className="bg-background rounded-xl p-3 border border-primary/20">
                   <div className="flex justify-between items-center">
-                    <span className="font-semibold text-[#F5F5FA]">Total</span>
-                    <span className="text-[#7B2CFF] font-bold">{formatCurrency(clienteDetalhes.valorTotal)}</span>
+                    <span className="font-semibold text-text">Total</span>
+                    <span className="text-primary font-bold">{formatCurrency(clienteDetalhes.valorTotal)}</span>
                   </div>
                 </div>
               </div>
             ) : (
               <div className="text-center py-8">
-                <p className="text-[#B8B8C8]">Nenhum item consumido</p>
+                <p className="text-secondary">Nenhum item consumido</p>
               </div>
             )}
           </div>

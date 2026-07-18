@@ -25,6 +25,13 @@ function ModalCriarPulseira({ isOpen, onClose, onSuccess }: ModalPulseiraProps) 
     setError("");
 
     try {
+      // Validar se contém apenas números
+      if (!/^\d+$/.test(numeroPulseira)) {
+        setError("Número da pulseira deve conter apenas números");
+        setLoading(false);
+        return;
+      }
+      
       await pulseiraService.create({
         numeroPulseira: numeroPulseira.padStart(3, '0'),
         nomeCliente
@@ -260,11 +267,6 @@ export default function PulseirasManager() {
     if (filtro === "agrupadas") return p.pulseiraAgrupadaCom !== null;
     return true;
   });
-
-  const pulseirasAgrupadas = pulseiras.filter(p => p.pulseiraAgrupadaCom);
-  const pulseirasPrincipais = pulseiras.filter(p => 
-    p.isAtivo && !p.pulseiraAgrupadaCom && !pulseirasAgrupadas.some(a => a.pulseiraAgrupadaCom === p.numeroPulseira)
-  );
 
   return (
     <div className="space-y-6">

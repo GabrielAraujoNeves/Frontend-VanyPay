@@ -13,7 +13,8 @@ import {
   LogOut,
   Armchair,
   Sparkles,
-  Wallet
+  Wallet,
+  Warehouse // ← ADICIONADO
 } from "lucide-react";
 
 interface SidebarProps {
@@ -40,6 +41,7 @@ export default function Sidebar({
     { id: "vendas", label: "Vendas", icon: ShoppingCart },
     { id: "pagamentos", label: "Pagamentos", icon: CreditCard },
     { id: "clientes", label: "Clientes", icon: Users },
+    { id: "estoque", label: "Estoque", icon: Warehouse }, // ← ADICIONADO
   ];
 
   return (

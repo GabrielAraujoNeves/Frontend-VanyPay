@@ -153,39 +153,112 @@ export default function VendasManager() {
     }
   };
 
-  // Buscar comanda da pulseira - simplificado
-  const buscarComandaPulseira = async (numeroPulseira: string) => {
-    setLoadingClientes(true);
-    setErrorMensagem(null);
-    try {
-      console.log(`Buscando comanda para pulseira: ${numeroPulseira}`);
-
-      const response = await pulseiraService.buscarComanda(numeroPulseira);
-      console.log("Comanda da pulseira:", response);
-
-      if (response && response.id) {
-        setComandaIdAtual(response.id);
-        setPulseiraSelecionada(numeroPulseira);
-        await buscarClientesDaComanda(response.id);
-      } else {
-        // Se não tiver comanda, ainda assim permite adicionar produto
-        setPulseiraSelecionada(numeroPulseira);
-        setClientes([]);
-        setComandaIdAtual(null);
-        setErrorMensagem("Pulseira selecionada. Adicione produtos diretamente.");
-        console.log(`✅ Pulseira ${numeroPulseira} selecionada para adicionar produtos`);
-      }
-    } catch (error) {
-      console.error("Erro ao buscar comanda da pulseira:", error);
-      // Mesmo com erro, mantém a pulseira selecionada
-      setPulseiraSelecionada(numeroPulseira);
-      setClientes([]);
-      setComandaIdAtual(null);
-      setErrorMensagem("Pulseira selecionada. Adicione produtos diretamente.");
-    } finally {
-      setLoadingClientes(false);
+  // NOVA FUNÇÃO: Buscar detalhes da pulseira pelo número
+const buscarPulseiraDetalhes = async (numeroPulseira: string) => {
+  setLoadingClientes(true);
+  setErrorMensagem(null);
+  try {
+    console.log(`🔍 Buscando detalhes da pulseira: ${numeroPulseira}`);
+    
+    const response = await pulseiraService.buscarPorNumero(numeroPulseira);
+    console.log("✅ Detalhes da pulseira:", response);
+    
+    setPulseiraSelecionada(numeroPulseira);
+    
+    // Verificar se a pulseira está agrupada
+    if (response.estaAgrupada === true) {
+      // Pulseira agrupada - mostrar informações de ambas
+      const itensPrincipal = response.itensPrincipal || [];
+      const itensSecundaria = response.itensSecundaria || [];
+      const todosItens = [...itensPrincipal, ...itensSecundaria];
+      
+      // Criar cliente virtual com o nome do principal e os itens de ambos
+      const clienteVirtual = {
+        id: 0, // id fictício
+        nome: `${response.nomeClientePrincipal} (Agrupado)`,
+        valorTotal: response.valorTotalAgrupado || 0,
+        itens: todosItens.map((item: any) => ({
+          id: item.itemId,
+          produto: { nome: item.produtoNome },
+          nome: item.produtoNome,
+          quantidade: item.quantidade,
+          precoUnitario: item.precoUnitario,
+          precoTotal: item.precoTotal
+        })),
+        pago: false
+      };
+      
+      setClientes([clienteVirtual]);
+      setClienteSelecionado(clienteVirtual);
+      setMostrarHistorico(true);
+      
+      // Mensagem informativa sobre o agrupamento
+      setErrorMensagem(
+        `🔗 Pulseira agrupada: Principal ${response.pulseiraPrincipal} (${response.nomeClientePrincipal}) + Secundária ${response.pulseiraSecundaria} (${response.nomeClienteSecundaria}) | Total: R$ ${response.valorTotalAgrupado?.toFixed(2) || '0,00'}`
+      );
+      
+      // Armazenar informações adicionais para exibição
+      setComandaInfo({
+        agrupado: true,
+        principal: {
+          numero: response.pulseiraPrincipal,
+          nome: response.nomeClientePrincipal,
+          saldo: response.saldoPrincipal,
+          itens: itensPrincipal
+        },
+        secundaria: {
+          numero: response.pulseiraSecundaria,
+          nome: response.nomeClienteSecundaria,
+          saldo: response.saldoSecundaria,
+          itens: itensSecundaria
+        },
+        valorTotal: response.valorTotalAgrupado
+      });
+      
+    } else {
+      // Pulseira individual (não agrupada)
+      const itens = response.itens || [];
+      
+      const clienteVirtual = {
+        id: response.id,
+        nome: response.nomeCliente,
+        valorTotal: response.saldoTotal || 0,
+        itens: itens.map((item: any) => ({
+          id: item.itemId,
+          produto: { nome: item.produtoNome },
+          nome: item.produtoNome,
+          quantidade: item.quantidade,
+          precoUnitario: item.precoUnitario,
+          precoTotal: item.precoTotal
+        })),
+        pago: false
+      };
+      
+      setClientes([clienteVirtual]);
+      setClienteSelecionado(clienteVirtual);
+      setMostrarHistorico(true);
+      
+      setErrorMensagem(`✅ Pulseira ${numeroPulseira} selecionada. Adicione produtos.`);
+      setComandaInfo({
+        agrupado: false,
+        numero: numeroPulseira,
+        nome: response.nomeCliente,
+        saldo: response.saldoTotal,
+        itens: itens
+      });
     }
-  };
+    
+  } catch (error) {
+    console.error("Erro ao buscar detalhes da pulseira:", error);
+    setPulseiraSelecionada(numeroPulseira);
+    setClientes([]);
+    setClienteSelecionado(null);
+    setMostrarHistorico(false);
+    setErrorMensagem(`Pulseira ${numeroPulseira} selecionada. Adicione produtos diretamente.`);
+  } finally {
+    setLoadingClientes(false);
+  }
+};
 
   const buscarComandaCartao = async (numeroCartao: string) => {
     setLoadingClientes(true);
@@ -265,7 +338,7 @@ export default function VendasManager() {
       }
     } else if (tipoVenda === "pulseira") {
       if (item.isAtivo) {
-        await buscarComandaPulseira(item.numeroPulseira);
+        await buscarPulseiraDetalhes(item.numeroPulseira);
       } else {
         setErrorMensagem("Esta pulseira está inativa");
       }
@@ -316,7 +389,7 @@ export default function VendasManager() {
     }
   };
 
-  // Função para adicionar produto diretamente à pulseira
+  // Função para adicionar produto diretamente à pulseira (usando novo endpoint)
   const handleAddProdutoPulseira = async (produto: Produto) => {
     console.log(`📦 Adicionando produto à pulseira ${pulseiraSelecionada}: ${produto.nome}`);
 
@@ -332,8 +405,8 @@ export default function VendasManager() {
 
       setMensagemSucesso(`✅ Produto "${produto.nome}" adicionado à pulseira ${pulseiraSelecionada}!`);
 
-      // Recarregar a comanda da pulseira para atualizar os itens
-      await buscarComandaPulseira(pulseiraSelecionada);
+      // Recarregar os detalhes da pulseira para atualizar os itens
+      await buscarPulseiraDetalhes(pulseiraSelecionada);
 
       setTimeout(() => {
         setMensagemSucesso(null);
@@ -501,22 +574,15 @@ export default function VendasManager() {
               hover:scale-105 transition-all duration-200
             `}
             >
-              {/* Badge de status */}
               <div className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full ${mesa.isOcupada ? 'bg-red-500 animate-pulse' : 'bg-green-500'
                 }`} />
-
-              {/* Número da Mesa */}
               <div className="text-4xl font-bold text-[#F5F5FA]">
                 {mesa.numeroMesa}
               </div>
-
-              {/* Capacidade */}
               <div className="flex items-center gap-1 text-[#B8B8C8] text-xs mt-1">
                 <Users size={12} />
                 <span>{mesa.capacidade}</span>
               </div>
-
-              {/* Status */}
               <div className={`mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${mesa.isOcupada
                   ? 'bg-red-500/20 text-red-400'
                   : 'bg-green-500/20 text-green-400'
@@ -556,21 +622,14 @@ export default function VendasManager() {
                 hover:scale-105 transition-all duration-200
               `}
             >
-              {/* Badge de status */}
               <div className={`absolute top-2 right-2 w-2.5 h-2.5 rounded-full ${pulseira.isAtivo ? 'bg-purple-500 animate-pulse' : 'bg-gray-500'
                 }`} />
-
-              {/* Número da Pulseira */}
               <div className="text-2xl font-bold text-[#F5F5FA]">
                 #{pulseira.numeroPulseira}
               </div>
-
-              {/* Nome do Cliente */}
               <div className="text-[#B8B8C8] text-xs mt-1 truncate max-w-[80px]">
                 {pulseira.nomeCliente}
               </div>
-
-              {/* Status */}
               <div className={`mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${pulseira.isAtivo
                   ? 'bg-purple-500/20 text-purple-400'
                   : 'bg-gray-500/20 text-gray-400'
@@ -702,7 +761,6 @@ export default function VendasManager() {
               {tipoVenda === "cartao" && "Cartões"}
             </h2>
 
-            {/* Sem scroll, apenas o conteúdo fluindo */}
             <div>
               {renderItemList()}
             </div>
@@ -717,7 +775,6 @@ export default function VendasManager() {
               </div>
             ) : (
               <>
-                {/* Mensagem de Sucesso */}
                 {mensagemSucesso && (
                   <div className="mb-4 p-3 bg-green-500/10 border border-green-500/20 rounded-xl text-green-400 text-sm flex items-center gap-2">
                     <CheckCircle size={16} />
@@ -725,14 +782,12 @@ export default function VendasManager() {
                   </div>
                 )}
 
-                {/* Mensagem de Erro */}
                 {errorMensagem && (
                   <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-yellow-400 text-sm">
                     {errorMensagem}
                   </div>
                 )}
 
-                {/* Loading Clientes */}
                 {loadingClientes ? (
                   <div className="text-center py-4">
                     <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-[#7B2CFF]"></div>
@@ -740,7 +795,6 @@ export default function VendasManager() {
                   </div>
                 ) : (
                   <>
-                    {/* Clientes da Comanda */}
                     {(clientes.length > 0 || comandaIdAtual) && (
                       <div className="mb-4">
                         <div className="flex justify-between items-center mb-2">
@@ -753,7 +807,6 @@ export default function VendasManager() {
                               </span>
                             )}
                           </h3>
-                          {/* Botão Adicionar Cliente - visível quando tem comanda ativa */}
                           {comandaIdAtual && (
                             <button
                               onClick={() => {
@@ -811,7 +864,6 @@ export default function VendasManager() {
                       </div>
                     )}
 
-                    {/* Seleção de Cliente (para pulseira/cartão) */}
                     {tipoVenda !== "mesa" && selectedItem && clientes.length === 0 && !errorMensagem && (
                       <div className="mb-4 p-2 bg-[#08080D] rounded-lg">
                         <p className="text-[#B8B8C8] text-sm">Cliente</p>
@@ -821,7 +873,6 @@ export default function VendasManager() {
                       </div>
                     )}
 
-                    {/* Produtos já consumidos pelo cliente (Histórico) */}
                     {clienteSelecionado && mostrarHistorico && clienteSelecionado.itens && clienteSelecionado.itens.length > 0 && (
                       <div className="mb-4 p-3 bg-[#08080D] rounded-xl border border-gray-700">
                         <h4 className="text-sm font-semibold text-[#F5F5FA] mb-2 flex items-center gap-2">
@@ -878,7 +929,6 @@ export default function VendasManager() {
                   </>
                 )}
 
-                {/* Lista de Produtos para Adicionar */}
                 <div className="grid grid-cols-2 gap-2 max-h-[120px] overflow-y-auto mb-3">
                   {produtosFiltrados.length === 0 ? (
                     <div className="col-span-2 text-center py-4 text-[#B8B8C8] text-sm">
@@ -909,7 +959,6 @@ export default function VendasManager() {
                   )}
                 </div>
 
-                {/* Carrinho (Novos Itens a serem adicionados) */}
                 <div className="border-t border-gray-800 pt-3">
                   <h3 className="text-sm font-semibold text-[#F5F5FA] mb-2 flex items-center gap-2">
                     <Tag size={14} className="text-[#7B2CFF]" />
@@ -999,7 +1048,6 @@ export default function VendasManager() {
         </div>
       )}
 
-      {/* Modal para Remover Item */}
       <ModalRemoverItem
         isOpen={showRemoverModal}
         onClose={() => {
@@ -1012,7 +1060,6 @@ export default function VendasManager() {
         loading={removendoItem}
       />
 
-      {/* Modal para Adicionar Cliente */}
       <ModalAdicionarCliente
         isOpen={showAdicionarClienteModal}
         onClose={() => {

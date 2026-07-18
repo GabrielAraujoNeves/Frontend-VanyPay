@@ -9,6 +9,7 @@ import ModalConfirmarDelete from "../Components/ModalConfirmarDelete";
 import HappyHourManager from "../Components/HappyHourManager";
 import MesasManager from "../Components/MesasManager";
 import PulseirasManager from "../Components/PulseirasManager";
+import EstoqueList from "../Components/EstoqueList"; // ← IMPORTA O ESTOQUE
 import { categoriaService, produtoService, authService } from "../service/api";
 import type { Categoria, Produto } from "../service/types";
 import { useTokenValidation } from "../hooks/useTokenValidation";
@@ -42,7 +43,7 @@ export default function Home() {
     try {
       const response = await categoriaService.listAll();
       console.log("Categorias carregadas:", response);
-      setCategorias(response.categorias || []);
+      setCategorias(response.categorias || []); 
     } catch (error) {
       console.error("Erro ao carregar categorias:", error);
       setCategorias([]);
@@ -115,6 +116,8 @@ export default function Home() {
             refreshTrigger={refreshProdutos}
           />
         );
+      case "estoque": // ← MUDOU PARA "estoque" (minúsculo)
+        return <EstoqueList refreshTrigger={refreshProdutos} />;
       case "happyhour":
         return <HappyHourManager />;
       case "mesas":

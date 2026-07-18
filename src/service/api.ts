@@ -88,7 +88,7 @@ api.interceptors.response.use(
 // Categorias
 export const categoriaService = {
   listAll: async () => {
-    const response = await api.get("/produtos/categorias");
+    const response = await api.get("/categoria/produtos");
     return response.data;
   },
   create: async (data: CreateCategoriaRequest) => {
@@ -101,6 +101,29 @@ export const categoriaService = {
   },
   delete: async (categoriaId: number) => {
     const response = await api.delete(`/categorias/${categoriaId}`);
+    return response.data;
+  }
+};
+
+export const estoqueService = {
+  listAll: async () => {
+    const response = await api.get("/estoque");
+    return response.data;
+  },
+  getItem: async (id: number) => {
+    const response = await api.get(`/estoque/${id}`);
+    return response.data;
+  },
+  create: async (data: any) => {
+    const response = await api.post("/estoque", data);
+    return response.data;
+  },
+  update: async (id: number, data: any) => {
+    const response = await api.put(`/estoque/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: number) => {
+    const response = await api.delete(`/estoque/${id}`);
     return response.data;
   }
 };
@@ -251,37 +274,51 @@ export const clienteService = {
 };
 
 export const pulseiraService = {
+  // Criar pulseira (novo endpoint)
   create: async (data: CreatePulseiraRequest): Promise<any> => {
-    const response = await api.post("/comanda/pulseiras", data);
+    const response = await api.post("/pulseiras", data);
     return response.data;
   },
+  
+  // Listar todas as pulseiras (novo endpoint)
   listAll: async (): Promise<PulseiraResponse> => {
-    const response = await api.get("/comanda/pulseiras");
+    const response = await api.get("/pulseiras");
     return response.data;
   },
+  
+  // Listar pulseiras ativas
   listAtivas: async (): Promise<PulseiraResponse> => {
     const response = await api.get("/comanda/pulseiras/ativas");
     return response.data;
   },
+  
+  // Agrupar pulseiras (novo endpoint)
   agrupar: async (data: AgruparPulseiraRequest): Promise<PulseiraMessageResponse> => {
-    const response = await api.post("/comanda/pulseiras/agrupar", data);
+    const response = await api.post("/pulseiras/agrupar", data);
     return response.data;
   },
+  
+  // Desagrupar pulseira (novo endpoint)
   desagrupar: async (numeroPulseira: string): Promise<PulseiraMessageResponse> => {
-    const response = await api.delete(`/comanda/pulseiras/${numeroPulseira}/desagrupar`);
+    const response = await api.delete(`/pulseiras/${numeroPulseira}/desagrupar`);
     return response.data;
   },
+  
+  // Desativar pulseira (novo endpoint)
   desativar: async (numeroPulseira: string): Promise<PulseiraMessageResponse> => {
-    const response = await api.delete(`/comanda/pulseiras/${numeroPulseira}`);
+    const response = await api.delete(`/pulseiras/${numeroPulseira}`);
     return response.data;
   },
-  buscarComanda: async (numeroPulseira: string): Promise<Comanda> => {
-    const response = await api.get(`/comanda/buscar?identificador=${numeroPulseira}&tipo=PULSEIRA`);
+  
+  // Buscar detalhes da pulseira pelo número (novo endpoint)
+  buscarPorNumero: async (numeroPulseira: string): Promise<any> => {
+    const response = await api.get(`/pulseiras/${numeroPulseira}`);
     return response.data;
   },
+  
+  // Adicionar produto à pulseira (novo endpoint)
   adicionarProduto: async (numeroPulseira: string, produtoId: number, quantidade: number): Promise<any> => {
-    const response = await api.post("/comanda/pulseira/produto", {
-      numeroPulseira,
+    const response = await api.post(`/pulseiras/${numeroPulseira}/produto`, {
       produtoId,
       quantidade
     });
@@ -354,18 +391,20 @@ export const pagamentoService = {
   }
 };
 
-// Serviços para Pagamento de Pulseira
+// Serviços para Pagamento de Pulseira (CORRIGIDO)
 export const pagamentoPulseiraService = {
+  // Pagar pulseira (individual ou agrupada) - NOVO ENDPOINT
   pagarPulseira: async (numeroPulseira: string, valorPago: number, formaPagamento: string): Promise<any> => {
-    const response = await api.post("/comanda/pulseira/pagar", {
-      numeroPulseira,
+    const response = await api.post(`/pulseiras/${numeroPulseira}/pagar`, {
       valorPago,
       formaPagamento
     });
     return response.data;
   },
+  
+  // Buscar detalhes da pulseira - NOVO ENDPOINT
   buscarPulseiraDetalhes: async (numeroPulseira: string): Promise<any> => {
-    const response = await api.get(`/comanda/pulseiras/${numeroPulseira}/detalhes`);
+    const response = await api.get(`/pulseiras/${numeroPulseira}`);
     return response.data;
   }
 };
