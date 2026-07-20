@@ -1,74 +1,27 @@
-import { useState, useEffect } from "react";
+// src/Components/EstoqueList.tsx
 import { Search, Package, Plus, Edit2, Trash2 } from "lucide-react";
-import { estoqueService } from "../service/api";
-import ModalEstoque from "./ModalEstoque";
+import { useEstoque } from "./hooks/useEstoque";
+import { useFiltros } from "./hooks/useFiltros";
+import { useModal } from "./hooks/useModal";
+import ModalEstoque from "./components/ModalEstoque";
+import ModalEditarEstoque from "./components/ModalEditarEstoque";
+import type { EstoqueItem } from "./types/estoque";
 
-interface EstoqueItem {
-  id: number;
-  nomeProduto: string;
-  categoriaId: number | null;
-  categoriaNome: string | null;
-  quantidade: number;
-  unidadeMedida: string;
-  pesoVolume: number;
-  precoUnitario: number;
-  precoCompra: number;
-  estoqueMinimo: number;
-  estoqueMaximo: number;
-  localizacao: string;
-  fornecedor: string;
-  dataValidade: string;
-  dataCadastro: string;
-  dataAtualizacao: string;
-  observacoes: string;
-  valorTotal: number;
-  isEstoqueBaixo: boolean;
-  isEstoqueAlto: boolean;
-  isVencido: boolean;
-  isProximoVencer: boolean;
-}
 
-interface EstoqueListProps {
+interface EstoqueProps {
   refreshTrigger?: number;
 }
 
-export default function EstoqueList({ refreshTrigger = 0 }: EstoqueListProps) {
-  const [itens, setItens] = useState<EstoqueItem[]>([]);
-  const [totalItens, setTotalItens] = useState(0);
-  const [valorTotalEstoque, setValorTotalEstoque] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState<string>("todos");
-  const [showModal, setShowModal] = useState(false);
-
-  const loadEstoque = async () => {
-    setLoading(true);
-    try {
-      const response = await estoqueService.listAll();
-      setItens(response.itens || []);
-      setTotalItens(response.totalItens || 0);
-      setValorTotalEstoque(response.valorTotalEstoque || 0);
-    } catch (error) {
-      console.error("Erro ao carregar estoque:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    loadEstoque();
-  }, [refreshTrigger]);
-
-  // Filtrar itens
-  const filteredItens = itens.filter(item => {
-    const matchSearch = item.nomeProduto.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchStatus = filterStatus === "todos" || 
-      (filterStatus === "baixo" && item.isEstoqueBaixo) ||
-      (filterStatus === "alto" && item.isEstoqueAlto) ||
-      (filterStatus === "vencido" && item.isVencido) ||
-      (filterStatus === "proximo" && item.isProximoVencer);
-    return matchSearch && matchStatus;
-  });
+export default function Estoque({ refreshTrigger = 0 }: EstoqueProps) {
+  // Usando os hooks personalizados
+  const { itens, totalItens, valorTotalEstoque, loading, loadEstoque } = 
+    useEstoque(refreshTrigger);
+  
+  const { searchTerm, setSearchTerm, filterStatus, setFilterStatus, filteredItens } = 
+    useFiltros(itens);
+  
+  const modalCreate = useModal();
+  const modalEdit = useModal<EstoqueItem>();
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('pt-BR', {
@@ -109,7 +62,7 @@ export default function EstoqueList({ refreshTrigger = 0 }: EstoqueListProps) {
         </div>
         
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() => modalCreate.open()}
           className="flex items-center gap-2 px-6 py-3 bg-[#7B2CFF] hover:bg-[#9A4DFF] rounded-xl transition-all"
         >
           <Plus size={20} />
@@ -165,6 +118,7 @@ export default function EstoqueList({ refreshTrigger = 0 }: EstoqueListProps) {
                 <h3 className="text-xl font-bold text-[#F5F5FA] flex-1">{item.nomeProduto}</h3>
                 <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
                   <button
+                    onClick={() => modalEdit.open(item)}
                     className="p-2 bg-[#08080D] rounded-lg text-[#B47DFF] hover:bg-[#7B2CFF]/20 transition-all"
                     title="Editar item"
                   >
@@ -218,12 +172,23 @@ export default function EstoqueList({ refreshTrigger = 0 }: EstoqueListProps) {
 
       {/* Modal para adicionar item */}
       <ModalEstoque
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
+        isOpen={modalCreate.isOpen}
+        onClose={modalCreate.close}
         onSuccess={() => {
-          setShowModal(false);
+          modalCreate.close();
           loadEstoque();
         }}
+      />
+
+      {/* Modal para editar item */}
+      <ModalEditarEstoque
+        isOpen={modalEdit.isOpen}
+        onClose={modalEdit.close}
+        onSuccess={() => {
+          modalEdit.close();
+          loadEstoque();
+        }}
+        item={modalEdit.data}
       />
     </div>
   );

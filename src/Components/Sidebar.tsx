@@ -14,7 +14,8 @@ import {
   Armchair,
   Sparkles,
   Wallet,
-  Warehouse // ← ADICIONADO
+  Warehouse,
+  Layers // ← ADICIONADO
 } from "lucide-react";
 
 interface SidebarProps {
@@ -22,6 +23,8 @@ interface SidebarProps {
   setActiveMenu: (menu: string) => void;
   onAddCategoria: () => void;
   onAddProduto: () => void;
+  onAddCategoriaEstoque: () => void; // ← NOVO
+  onAddItemEstoque: () => void; // ← NOVO
   onLogout: () => void;
 }
 
@@ -30,18 +33,20 @@ export default function Sidebar({
   setActiveMenu,
   onAddCategoria,
   onAddProduto,
+  onAddCategoriaEstoque, // ← NOVO
+  onAddItemEstoque, // ← NOVO
   onLogout
 }: SidebarProps) {
   const [open, setOpen] = useState(true);
   const [showProdutosSubmenu, setShowProdutosSubmenu] = useState(false);
   const [showConfigSubmenu, setShowConfigSubmenu] = useState(false);
+  const [showEstoqueSubmenu, setShowEstoqueSubmenu] = useState(false);
 
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: Home },
     { id: "vendas", label: "Vendas", icon: ShoppingCart },
     { id: "pagamentos", label: "Pagamentos", icon: CreditCard },
     { id: "clientes", label: "Clientes", icon: Users },
-    { id: "estoque", label: "Estoque", icon: Warehouse }, // ← ADICIONADO
   ];
 
   return (
@@ -102,6 +107,72 @@ export default function Sidebar({
               </button>
             </li>
           ))}
+
+          {/* Menu Estoque com Submenu */}
+          <li>
+            <button
+              onClick={() => open && setShowEstoqueSubmenu(!showEstoqueSubmenu)}
+              className={`
+                flex items-center gap-3 w-full p-3 rounded-xl transition-all
+                ${activeMenu === "estoque"
+                  ? "bg-[#7B2CFF] text-white"
+                  : "text-[#B8B8C8] hover:bg-[#7B2CFF]/10 hover:text-white"
+                }
+              `}
+            >
+              <Warehouse size={20} />
+              {open && (
+                <div className="flex-1 text-left">
+                  <span>Estoque</span>
+                </div>
+              )}
+              {open && (
+                <svg
+                  className={`transform transition-transform duration-200 ${showEstoqueSubmenu ? "rotate-180" : ""}`}
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              )}
+            </button>
+
+            {open && showEstoqueSubmenu && (
+              <ul className="ml-8 mt-2 space-y-2">
+                <li>
+                  <button
+                    onClick={() => setActiveMenu("estoque")}
+                    className="w-full text-left p-2 rounded-lg text-[#B8B8C8] hover:bg-[#7B2CFF]/10 hover:text-white transition-all text-sm flex items-center gap-2"
+                  >
+                    <Package size={14} />
+                    Listar Itens
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={onAddItemEstoque}
+                    className="w-full text-left p-2 rounded-lg text-[#B8B8C8] hover:bg-[#7B2CFF]/10 hover:text-white transition-all text-sm flex items-center gap-2"
+                  >
+                    <PlusCircle size={14} />
+                    Adicionar Item
+                  </button>
+                </li>
+                <li>
+                  <button
+                    onClick={onAddCategoriaEstoque}
+                    className="w-full text-left p-2 rounded-lg text-[#B8B8C8] hover:bg-[#7B2CFF]/10 hover:text-white transition-all text-sm flex items-center gap-2"
+                  >
+                    <Layers size={14} />
+                    Adicionar Categoria
+                  </button>
+                </li>
+              </ul>
+            )}
+          </li>
 
           {/* Menu Produtos com Submenu */}
           <li>

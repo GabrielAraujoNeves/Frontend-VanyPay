@@ -118,7 +118,7 @@ export const estoqueService = {
     const response = await api.post("/estoque", data);
     return response.data;
   },
-  update: async (id: number, data: any) => {
+   update: async (id: number, data: any) => {
     const response = await api.put(`/estoque/${id}`, data);
     return response.data;
   },

@@ -1,16 +1,42 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { X } from "lucide-react";
-import { estoqueService } from "../service/api";
+import { toast } from 'react-toastify';
+import { estoqueService } from "../../../service/api";
 
-interface ModalEstoqueProps {
+interface EstoqueItem {
+  id: number;
+  nomeProduto: string;
+  categoriaId: number | null;
+  categoriaNome: string | null;
+  quantidade: number;
+  unidadeMedida: string;
+  pesoVolume: number;
+  precoUnitario: number;
+  precoCompra: number;
+  estoqueMinimo: number;
+  estoqueMaximo: number;
+  localizacao: string;
+  fornecedor: string;
+  dataValidade: string;
+  dataCadastro: string;
+  dataAtualizacao: string;
+  observacoes: string;
+  valorTotal: number;
+  isEstoqueBaixo: boolean;
+  isEstoqueAlto: boolean;
+  isVencido: boolean;
+  isProximoVencer: boolean;
+}
+
+interface ModalEditarEstoqueProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  item: EstoqueItem | null;
 }
 
-export default function ModalEstoque({ isOpen, onClose, onSuccess }: ModalEstoqueProps) {
+export default function ModalEditarEstoque({ isOpen, onClose, onSuccess, item }: ModalEditarEstoqueProps) {
   const [nomeProduto, setNomeProduto] = useState("");
-  const [categoria, setCategoria] = useState("");
   const [quantidade, setQuantidade] = useState("");
   const [unidadeMedida, setUnidadeMedida] = useState("UN");
   const [pesoVolume, setPesoVolume] = useState("");
@@ -25,54 +51,77 @@ export default function ModalEstoque({ isOpen, onClose, onSuccess }: ModalEstoqu
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Carregar dados do item quando o modal abrir
+  useEffect(() => {
+    if (item && isOpen) {
+      setNomeProduto(item.nomeProduto || "");
+      setQuantidade(item.quantidade?.toString() || "");
+      setUnidadeMedida(item.unidadeMedida || "UN");
+      setPesoVolume(item.pesoVolume?.toString() || "");
+      setPrecoUnitario(item.precoUnitario?.toString() || "");
+      setPrecoCompra(item.precoCompra?.toString() || "");
+      setEstoqueMinimo(item.estoqueMinimo?.toString() || "");
+      setEstoqueMaximo(item.estoqueMaximo?.toString() || "");
+      setLocalizacao(item.localizacao || "");
+      setFornecedor(item.fornecedor || "");
+      setDataValidade(item.dataValidade ? item.dataValidade.split('T')[0] : "");
+      setObservacoes(item.observacoes || "");
+    }
+  }, [item, isOpen]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!item) return;
+
     setLoading(true);
     setError("");
 
     try {
       const data = {
         nomeProduto,
-        categoria,
-        quantidade: parseInt(quantidade),
-        unidadeMedida,
-        pesoVolume: parseFloat(pesoVolume) || 0,
         precoUnitario: parseFloat(precoUnitario),
-        precoCompra: parseFloat(precoCompra),
+        precoCompra: parseFloat(precoCompra) || 0,
         estoqueMinimo: parseInt(estoqueMinimo) || 0,
         estoqueMaximo: parseInt(estoqueMaximo) || 0,
         localizacao,
-        fornecedor,
-        dataValidade: dataValidade ? `${dataValidade}T23:59:59` : null,
         observacoes
       };
 
-      await estoqueService.create(data);
+      await estoqueService.update(item.id, data);
+      
+      // Toast de sucesso
+      toast.success(`"${nomeProduto}" atualizado com sucesso!`, {
+        position: "top-right",
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "dark",
+      });
+      
       onSuccess();
       onClose();
-      resetForm();
     } catch (err: any) {
-      console.error("Erro ao criar item:", err);
-      setError(err.response?.data?.message || "Erro ao criar item no estoque");
+      console.error("Erro ao atualizar item:", err);
+      const errorMessage = err.response?.data?.message || "Erro ao atualizar item no estoque";
+      setError(errorMessage);
+      
+      //Toast de erro
+      toast.error(` ${errorMessage}`, {
+        position: "top-right",
+        autoClose: 4000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "dark",
+      });
     } finally {
       setLoading(false);
     }
-  };
-
-  const resetForm = () => {
-    setNomeProduto("");
-    setCategoria("");
-    setQuantidade("");
-    setUnidadeMedida("UN");
-    setPesoVolume("");
-    setPrecoUnitario("");
-    setPrecoCompra("");
-    setEstoqueMinimo("");
-    setEstoqueMaximo("");
-    setLocalizacao("");
-    setFornecedor("");
-    setDataValidade("");
-    setObservacoes("");
   };
 
   if (!isOpen) return null;
@@ -81,7 +130,7 @@ export default function ModalEstoque({ isOpen, onClose, onSuccess }: ModalEstoqu
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-[#12121A] rounded-2xl w-full max-w-2xl p-6 border border-[#7B2CFF]/20 max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-[#F5F5FA]">Novo Item no Estoque</h2>
+          <h2 className="text-2xl font-bold text-[#F5F5FA]">Editar Item no Estoque</h2>
           <button
             onClick={onClose}
             className="text-[#B8B8C8] hover:text-white transition-colors"
@@ -92,75 +141,47 @@ export default function ModalEstoque({ isOpen, onClose, onSuccess }: ModalEstoqu
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Nome do Produto */}
+            {/* Nome do Produto - Somente leitura */}
             <div className="col-span-2">
-              <label className="block text-[#B8B8C8] mb-2">Nome do Produto *</label>
+              <label className="block text-[#B8B8C8] mb-2">Nome do Produto</label>
               <input
                 type="text"
                 value={nomeProduto}
-                onChange={(e) => setNomeProduto(e.target.value)}
-                required
-                className="w-full bg-[#08080D] border border-gray-700 rounded-xl px-4 py-3 text-[#F5F5FA] outline-none focus:border-[#7B2CFF]"
-                placeholder="Ex: Whisky Jack Daniels"
+                disabled
+                className="w-full bg-[#08080D] border border-gray-700 rounded-xl px-4 py-3 text-[#F5F5FA] outline-none opacity-50 cursor-not-allowed"
               />
             </div>
 
-            {/* Categoria */}
+            {/* Quantidade - Somente leitura */}
             <div>
-              <label className="block text-[#B8B8C8] mb-2">Categoria *</label>
-              <input
-                type="text"
-                value={categoria}
-                onChange={(e) => setCategoria(e.target.value)}
-                required
-                className="w-full bg-[#08080D] border border-gray-700 rounded-xl px-4 py-3 text-[#F5F5FA] outline-none focus:border-[#7B2CFF]"
-                placeholder="Ex: Bebidas Alcoólicas"
-              />
-            </div>
-
-            {/* Unidade de Medida */}
-            <div>
-              <label className="block text-[#B8B8C8] mb-2">Unidade de Medida *</label>
-              <select
-                value={unidadeMedida}
-                onChange={(e) => setUnidadeMedida(e.target.value)}
-                required
-                className="w-full bg-[#08080D] border border-gray-700 rounded-xl px-4 py-3 text-[#F5F5FA] outline-none focus:border-[#7B2CFF]"
-              >
-                <option value="UN">Unidade (UN)</option>
-                <option value="KG">Quilograma (KG)</option>
-                <option value="G">Grama (G)</option>
-                <option value="L">Litro (L)</option>
-                <option value="ML">Mililitro (ML)</option>
-                <option value="CX">Caixa (CX)</option>
-                <option value="PCT">Pacote (PCT)</option>
-              </select>
-            </div>
-
-            {/* Quantidade */}
-            <div>
-              <label className="block text-[#B8B8C8] mb-2">Quantidade *</label>
+              <label className="block text-[#B8B8C8] mb-2">Quantidade</label>
               <input
                 type="number"
                 value={quantidade}
-                onChange={(e) => setQuantidade(e.target.value)}
-                required
-                min="0"
-                className="w-full bg-[#08080D] border border-gray-700 rounded-xl px-4 py-3 text-[#F5F5FA] outline-none focus:border-[#7B2CFF]"
-                placeholder="20"
+                disabled
+                className="w-full bg-[#08080D] border border-gray-700 rounded-xl px-4 py-3 text-[#F5F5FA] outline-none opacity-50 cursor-not-allowed"
               />
             </div>
 
-            {/* Peso/Volume */}
+            {/* Unidade de Medida - Somente leitura */}
+            <div>
+              <label className="block text-[#B8B8C8] mb-2">Unidade de Medida</label>
+              <input
+                type="text"
+                value={unidadeMedida}
+                disabled
+                className="w-full bg-[#08080D] border border-gray-700 rounded-xl px-4 py-3 text-[#F5F5FA] outline-none opacity-50 cursor-not-allowed"
+              />
+            </div>
+
+            {/* Peso/Volume - Somente leitura */}
             <div>
               <label className="block text-[#B8B8C8] mb-2">Peso/Volume</label>
               <input
-                type="number"
-                step="0.01"
+                type="text"
                 value={pesoVolume}
-                onChange={(e) => setPesoVolume(e.target.value)}
-                className="w-full bg-[#08080D] border border-gray-700 rounded-xl px-4 py-3 text-[#F5F5FA] outline-none focus:border-[#7B2CFF]"
-                placeholder="1.0"
+                disabled
+                className="w-full bg-[#08080D] border border-gray-700 rounded-xl px-4 py-3 text-[#F5F5FA] outline-none opacity-50 cursor-not-allowed"
               />
             </div>
 
@@ -243,14 +264,14 @@ export default function ModalEstoque({ isOpen, onClose, onSuccess }: ModalEstoqu
               />
             </div>
 
-            {/* Data de Validade */}
+            {/* Data de Validade - Somente leitura */}
             <div>
               <label className="block text-[#B8B8C8] mb-2">Data de Validade</label>
               <input
                 type="date"
                 value={dataValidade}
-                onChange={(e) => setDataValidade(e.target.value)}
-                className="w-full bg-[#08080D] border border-gray-700 rounded-xl px-4 py-3 text-[#F5F5FA] outline-none focus:border-[#7B2CFF]"
+                disabled
+                className="w-full bg-[#08080D] border border-gray-700 rounded-xl px-4 py-3 text-[#F5F5FA] outline-none opacity-50 cursor-not-allowed"
               />
             </div>
 
@@ -276,7 +297,7 @@ export default function ModalEstoque({ isOpen, onClose, onSuccess }: ModalEstoqu
             disabled={loading}
             className="w-full py-3 rounded-xl font-semibold text-white bg-[#7B2CFF] transition-all hover:bg-[#9A4DFF] disabled:opacity-50"
           >
-            {loading ? "Criando..." : "Adicionar ao Estoque"}
+            {loading ? "Salvando..." : "Salvar Alterações"}
           </button>
         </form>
       </div>

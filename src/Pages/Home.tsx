@@ -9,7 +9,6 @@ import ModalConfirmarDelete from "../Components/ModalConfirmarDelete";
 import HappyHourManager from "../Components/HappyHourManager";
 import MesasManager from "../Components/MesasManager";
 import PulseirasManager from "../Components/PulseirasManager";
-import EstoqueList from "../Components/EstoqueList"; // ← IMPORTA O ESTOQUE
 import { categoriaService, produtoService, authService } from "../service/api";
 import type { Categoria, Produto } from "../service/types";
 import { useTokenValidation } from "../hooks/useTokenValidation";
@@ -17,15 +16,25 @@ import Dashboard from "../Components/Dashboard";
 import CartoesManager from "../Components/CartoesManager";
 import VendasManager from "../Components/VendasManager";
 import Pagamentos from "../Components/Pagamentos";
+import Estoque from "../features/Estoque";
+import ModalCategoriaEstoque from "../features/Estoque/components/ModalCategoriaEstoque";
+import ModalEstoque from "../features/Estoque/components/ModalEstoque";
 
 export default function Home() {
   const navigate = useNavigate();
   const { isValidating, isAuthenticated } = useTokenValidation();
   const [activeMenu, setActiveMenu] = useState("dashboard");
+  
+  // Modals Produtos
   const [showCategoriaModal, setShowCategoriaModal] = useState(false);
   const [showProdutoModal, setShowProdutoModal] = useState(false);
   const [showEditarProdutoModal, setShowEditarProdutoModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  
+  // Modals Estoque
+  const [showCategoriaEstoqueModal, setShowCategoriaEstoqueModal] = useState(false); // ← NOVO
+  const [showItemEstoqueModal, setShowItemEstoqueModal] = useState(false); // ← NOVO
+  
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [refreshProdutos, setRefreshProdutos] = useState(0);
   const [produtoSelecionado, setProdutoSelecionado] = useState<Produto | null>(null);
@@ -60,6 +69,7 @@ export default function Home() {
     setRefreshProdutos(prev => prev + 1);
   };
 
+  // Handlers Produtos
   const handleAddCategoria = () => {
     setShowCategoriaModal(true);
   };
@@ -95,6 +105,15 @@ export default function Home() {
     }
   };
 
+  // Handlers Estoque
+  const handleAddCategoriaEstoque = () => { // ← NOVO
+    setShowCategoriaEstoqueModal(true);
+  };
+
+  const handleAddItemEstoque = () => { // ← NOVO
+    setShowItemEstoqueModal(true);
+  };
+
   // Logout
   const handleLogout = () => {
     authService.logout();
@@ -116,8 +135,8 @@ export default function Home() {
             refreshTrigger={refreshProdutos}
           />
         );
-      case "estoque": // ← MUDOU PARA "estoque" (minúsculo)
-        return <EstoqueList refreshTrigger={refreshProdutos} />;
+      case "estoque":
+        return <Estoque refreshTrigger={refreshProdutos} />;
       case "happyhour":
         return <HappyHourManager />;
       case "mesas":
@@ -176,6 +195,8 @@ export default function Home() {
         setActiveMenu={setActiveMenu}
         onAddCategoria={handleAddCategoria}
         onAddProduto={handleAddProduto}
+        onAddCategoriaEstoque={handleAddCategoriaEstoque} // ← NOVO
+        onAddItemEstoque={handleAddItemEstoque} // ← NOVO
         onLogout={handleLogout}
       />
 
@@ -183,7 +204,7 @@ export default function Home() {
         {renderContent()}
       </main>
 
-      {/* Modals */}
+      {/* Modals Produtos */}
       <ModalCategoria
         isOpen={showCategoriaModal}
         onClose={() => setShowCategoriaModal(false)}
@@ -229,6 +250,29 @@ export default function Home() {
         message={`Tem certeza que deseja deletar o produto "${produtoSelecionado?.nome}"? Esta ação não pode ser desfeita.`}
         loading={deletando}
       />
+
+      {/* Modals Estoque */}
+      <ModalCategoriaEstoque // ← NOVO
+        isOpen={showCategoriaEstoqueModal}
+        onClose={() => setShowCategoriaEstoqueModal(false)}
+        onSuccess={() => {
+          handleRefresh();
+          setShowCategoriaEstoqueModal(false);
+        }}
+      />
+
+      {/* O ModalEstoque é aberto dentro do componente Estoque */}
+      {/* Mas se quiser abrir via Sidebar, pode manter assim */}
+      {showItemEstoqueModal && (
+        <ModalEstoque
+          isOpen={showItemEstoqueModal}
+          onClose={() => setShowItemEstoqueModal(false)}
+          onSuccess={() => {
+            handleRefresh();
+            setShowItemEstoqueModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }
